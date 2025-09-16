@@ -1,0 +1,180 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Updated to SUI-themed color palette */
+  --background: #f1f5f9; /* Light gray for overall background */
+  --foreground: #0a84ff; /* Main blue for primary text */
+  --card: #ffffff; /* White for card backgrounds */
+  --card-foreground: #0a84ff; /* Main blue for card text */
+  --popover: #ffffff; /* White for popovers */
+  --popover-foreground: #0a84ff; /* Main blue for popover text */
+  --primary: #0a84ff; /* Main blue for call-to-action buttons */
+  --primary-foreground: #ffffff; /* White text on primary buttons */
+  --secondary: #37b24d; /* Green for secondary actions */
+  --secondary-foreground: #ffffff; /* White text on secondary buttons */
+  --muted: #b0c4de; /* Light steel blue for muted text */
+  --muted-foreground: #0a84ff; /* Main blue for muted text emphasis */
+  --accent: #37b24d; /* Green for accents */
+  --accent-foreground: #ffffff; /* White text on accents */
+  --destructive: #ff6b6b; /* Red for destructive actions */
+  --destructive-foreground: #ffffff; /* White text on destructive buttons */
+  --border: #d1d5db; /* Light border color */
+  --input: #ffffff; /* White for input fields */
+  --ring: rgba(10, 132, 255, 0.5); /* Blue ring for focus states */
+  --chart-1: #0a84ff; /* Main blue for charts */
+  --chart-2: #37b24d; /* Green for second chart color */
+  --chart-3: #ff6b6b; /* Red for third chart color */
+  --chart-4: #b0c4de; /* Light steel blue for fourth chart color */
+  --chart-5: #fbbf24; /* Yellow for fifth chart color */
+  --radius: 0.75rem; /* Slightly more rounded corners */
+  --sidebar: #ffffff; /* White for sidebar background */
+  --sidebar-foreground: #0a84ff; /* Main blue for sidebar text */
+  --sidebar-primary: #f1f5f9; /* Light gray for sidebar primary elements */
+  --sidebar-primary-foreground: #0a84ff; /* Main blue for primary sidebar text */
+  --sidebar-accent: #37b24d; /* Green for sidebar accent elements */
+  --sidebar-accent-foreground: #ffffff; /* White text on sidebar accents */
+  --sidebar-border: #d1d5db; /* Light gray for sidebar borders */
+  --sidebar-ring: rgba(10, 132, 255, 0.5); /* Blue ring for sidebar focus */
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --card: #1e293b;
+  --card-foreground: #f1f5f9;
+  --popover: #1e293b;
+  --popover-foreground: #f1f5f9;
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #37b24d;
+  --secondary-foreground: #ffffff;
+  --muted: #334155;
+  --muted-foreground: #94a3b8;
+  --accent: #37b24d;
+  --accent-foreground: #ffffff;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #ffffff;
+  --border: #334155;
+  --input: #1e293b;
+  --ring: rgba(10, 132, 255, 0.5);
+  --chart-1: #0a84ff;
+  --chart-2: #37b24d;
+  --chart-3: #ff6b6b;
+  --chart-4: #b0c4de;
+  --chart-5: #fbbf24;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-primary: #0a84ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #f1f5f9;
+  --sidebar-border: #334155;
+  --sidebar-ring: rgba(10, 132, 255, 0.5);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Added gradient background for SUI theme */
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    min-height: 100vh;
+  }
+}
+
+/* Added custom animations and effects for gaming platform */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(10, 132, 255, 0.6);
+  }
+}
+
+/* Added slow spin animation for NFT gem icon */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Added slow spin animation class */
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* Custom glass morphism effect for cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
