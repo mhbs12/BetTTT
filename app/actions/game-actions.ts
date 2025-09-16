@@ -2,8 +2,8 @@
 
 import { gameStore } from "@/lib/game-store"
 
-export async function createRoom(roomName: string, playerAddress: string, playerName: string) {
-  console.log("[v0] Server: Creating room", { roomName, playerAddress, playerName })
+export async function createRoom(roomName: string, playerAddress: string, playerName: string, betAmount?: string, treasuryId?: string) {
+  console.log("[v0] Server: Creating room", { roomName, playerAddress, playerName, betAmount, treasuryId })
 
   try {
     if (!roomName.trim() || !playerAddress || !playerName) {
@@ -14,7 +14,7 @@ export async function createRoom(roomName: string, playerAddress: string, player
       return { success: false, error: "Room name too long (max 50 characters)" }
     }
 
-    const roomId = gameStore.createRoom(roomName.trim(), playerAddress, playerName)
+    const roomId = gameStore.createRoom(roomName.trim(), playerAddress, playerName, betAmount, treasuryId)
     const room = gameStore.getRoom(roomId)
 
     console.log("[v0] Server: Room created successfully", { roomId, room })
@@ -154,6 +154,55 @@ export async function leaveRoom(roomId: string, playerAddress: string) {
   } catch (error) {
     console.error("[v0] Server: Error removing player from room", error)
     return { success: false, error: "Failed to leave room. Please try again." }
+  }
+}
+
+export async function updateRoomTreasuryId(roomId: string, treasuryId: string) {
+  console.log("[v0] Server: Updating room treasury ID", { roomId, treasuryId })
+
+  try {
+    if (!roomId.trim() || !treasuryId.trim()) {
+      return { success: false, error: "Missing required fields" }
+    }
+
+    const room = gameStore.updateRoomTreasuryId(roomId.trim(), treasuryId.trim())
+
+    if (!room) {
+      return { success: false, error: "Room not found" }
+    }
+
+    console.log("[v0] Server: Treasury ID updated successfully", { room })
+    return { success: true, room }
+  } catch (error) {
+    console.error("[v0] Server: Error updating treasury ID", error)
+    return { success: false, error: "Failed to update treasury ID" }
+  }
+}
+
+export async function finishGameWithBlockchain(roomId: string, winnerAddress: string, treasuryId: string) {
+  console.log("[v0] Server: Finishing game with blockchain", { roomId, winnerAddress, treasuryId })
+
+  try {
+    if (!roomId.trim() || !winnerAddress || !treasuryId) {
+      return { success: false, error: "Missing required fields" }
+    }
+
+    const room = gameStore.getRoom(roomId.trim())
+    if (!room) {
+      return { success: false, error: "Room not found" }
+    }
+
+    // Update game status to finished if not already
+    if (room.status !== "finished") {
+      room.status = "finished"
+      room.winner = winnerAddress
+    }
+
+    console.log("[v0] Server: Game finished, ready for blockchain transaction", { room })
+    return { success: true, room, needsBlockchainTransaction: true }
+  } catch (error) {
+    console.error("[v0] Server: Error finishing game", error)
+    return { success: false, error: "Failed to finish game" }
   }
 }
 
