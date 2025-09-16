@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { makeMove, getRoomState, leaveRoom, checkGameForfeit } from "@/app/actions/game-actions"
+import { finishGameTransaction } from "@/lib/sui-transactions"
 import type { GameRoom } from "@/lib/game-store"
 
 interface SimpleGameRoomProps {
@@ -14,15 +15,54 @@ interface SimpleGameRoomProps {
 }
 
 export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps) {
-  const { account } = useWallet()
+  const { account, signAndExecuteTransaction } = useWallet()
   const [room, setRoom] = useState<GameRoom>(initialRoom)
   const [loading, setLoading] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "reconnecting" | "error">("connected")
   const [retryCount, setRetryCount] = useState(0)
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
   const [isForfeit, setIsForfeit] = useState(false)
+  const [blockchainTransactionProcessed, setBlockchainTransactionProcessed] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const maxRetries = 5
+
+  const handleGameFinished = async (finishedRoom: GameRoom) => {
+    // If this room has betting and a winner, execute blockchain transaction
+    if (finishedRoom.betAmount && finishedRoom.treasuryId && finishedRoom.winner && !blockchainTransactionProcessed) {
+      console.log("[v0] Game finished with betting, executing blockchain transaction")
+      
+      try {
+        setBlockchainTransactionProcessed(true)
+        
+        // Create the finish game transaction
+        const transaction = finishGameTransaction(finishedRoom.winner, finishedRoom.treasuryId)
+        
+        // Execute the transaction
+        const result = await signAndExecuteTransaction({
+          transaction: transaction,
+          options: {
+            showInput: true,
+            showEffects: true,
+            showEvents: true,
+            showObjectChanges: true,
+          },
+        })
+        
+        console.log("[v0] Finish game blockchain transaction successful:", result)
+        
+      } catch (blockchainError) {
+        console.error("[v0] Blockchain transaction failed:", blockchainError)
+        // Don't prevent the UI from showing the winner even if blockchain transaction fails
+        setBlockchainTransactionProcessed(false)
+      }
+    }
+    
+    // Check forfeit status
+    const forfeitResult = await checkGameForfeit(finishedRoom.id)
+    if (forfeitResult.success) {
+      setIsForfeit(forfeitResult.isForfeit)
+    }
+  }
 
   useEffect(() => {
     // Don't poll if game is finished
@@ -33,14 +73,7 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
         intervalRef.current = null
       }
 
-      const checkForfeit = async () => {
-        const result = await checkGameForfeit(room.id)
-        if (result.success) {
-          setIsForfeit(result.isForfeit)
-        }
-      }
-      checkForfeit()
-
+      handleGameFinished(room)
       return
     }
 
@@ -61,10 +94,7 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
               intervalRef.current = null
             }
 
-            const forfeitResult = await checkGameForfeit(room.id)
-            if (forfeitResult.success) {
-              setIsForfeit(forfeitResult.isForfeit)
-            }
+            handleGameFinished(result.room)
           }
         } else {
           throw new Error(result.error || "Failed to fetch room state")

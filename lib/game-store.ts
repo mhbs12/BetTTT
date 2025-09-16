@@ -11,6 +11,10 @@ interface GameRoom {
   winner: string | null
   status: "waiting" | "playing" | "finished"
   createdAt: number
+  // Betting related fields
+  betAmount?: string // Amount in SUI
+  treasuryId?: string // Shared treasury object ID from the blockchain
+  betTransactionId?: string // Transaction ID for bet creation
 }
 
 const globalRooms = new Map<string, GameRoom>()
@@ -20,7 +24,7 @@ class GameStore {
     return globalRooms
   }
 
-  createRoom(roomName: string, playerAddress: string, playerName: string): string {
+  createRoom(roomName: string, playerAddress: string, playerName: string, betAmount?: string, treasuryId?: string): string {
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase()
 
     const room: GameRoom = {
@@ -38,10 +42,12 @@ class GameStore {
       winner: null,
       status: "waiting",
       createdAt: Date.now(),
+      betAmount,
+      treasuryId,
     }
 
     this.rooms.set(roomId, room)
-    console.log("[v0] Room created and stored:", { roomId, totalRooms: this.rooms.size })
+    console.log("[v0] Room created and stored:", { roomId, totalRooms: this.rooms.size, betAmount, treasuryId })
     return roomId
   }
 
@@ -170,6 +176,24 @@ class GameStore {
       }
     }
 
+    return room
+  }
+
+  updateRoomTreasuryId(roomId: string, treasuryId: string): GameRoom | null {
+    const room = this.rooms.get(roomId)
+    if (!room) return null
+
+    room.treasuryId = treasuryId
+    console.log("[v0] Updated room treasury ID:", { roomId, treasuryId })
+    return room
+  }
+
+  updateRoomBetTransaction(roomId: string, transactionId: string): GameRoom | null {
+    const room = this.rooms.get(roomId)
+    if (!room) return null
+
+    room.betTransactionId = transactionId
+    console.log("[v0] Updated room bet transaction ID:", { roomId, transactionId })
     return room
   }
 
