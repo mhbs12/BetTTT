@@ -49,6 +49,11 @@ export async function criarAposta(
 
     const tx = new Transaction()
     
+    // Set fixed gas budget of 0.01 SUI (10,000,000 MIST)
+    const gasBudget = 10_000_000 // 0.01 SUI
+    tx.setGasBudget(gasBudget)
+    
+    console.log("[v0] criarAposta: Setting gas budget to", gasBudget, "MIST (0.01 SUI)")
     console.log("[v0] criarAposta: Setting gas payment with", coinSelection.gasCoins.length, "coins (limited for safety)")
     tx.setGasPayment(coinSelection.gasCoins.map(coin => ({
       objectId: coin.coinObjectId,
@@ -102,7 +107,7 @@ export async function criarAposta(
     console.error("Error in criarAposta:", error)
     return {
       success: false,
-      error: error.message || "Failed to create bet",
+      error: error instanceof Error ? error.message : "Failed to create bet",
     }
   }
 }
@@ -158,6 +163,11 @@ export async function entrarAposta(
 
     const tx = new Transaction()
     
+    // Set fixed gas budget of 0.01 SUI (10,000,000 MIST)
+    const gasBudget = 10_000_000 // 0.01 SUI
+    tx.setGasBudget(gasBudget)
+    
+    console.log("[v0] entrarAposta: Setting gas budget to", gasBudget, "MIST (0.01 SUI)")
     console.log("[v0] entrarAposta: Setting gas payment with", coinSelection.gasCoins.length, "coins (limited for safety)")
     tx.setGasPayment(coinSelection.gasCoins.map(coin => ({
       objectId: coin.coinObjectId,
@@ -190,7 +200,7 @@ export async function entrarAposta(
     console.error("Error in entrarAposta:", error)
     return {
       success: false,
-      error: error.message || "Failed to join bet",
+      error: error instanceof Error ? error.message : "Failed to join bet",
     }
   }
 }
@@ -225,10 +235,15 @@ export async function finishGame(
 
     const tx = new Transaction()
     
+    // Set fixed gas budget of 0.01 SUI (10,000,000 MIST)
+    const gasBudget = 10_000_000 // 0.01 SUI
+    tx.setGasBudget(gasBudget)
+    
     // Set gas payment explicitly to avoid "No valid gas coins found" error
     // Use a limited number of coins for gas payment to prevent draining wallet
     const gasCoins = userCoinsResult.coins.slice(0, 2) // Limit to 2 coins for safety
     
+    console.log("[v0] finishGame: Setting gas budget to", gasBudget, "MIST (0.01 SUI)")
     console.log("[v0] finishGame: Setting gas payment with", gasCoins.length, "coins (limited for safety)")
     tx.setGasPayment(gasCoins.map(coin => ({
       objectId: coin.coinObjectId,
@@ -260,7 +275,7 @@ export async function finishGame(
     console.error("Error in finishGame:", error)
     return {
       success: false,
-      error: error.message || "Failed to finish game",
+      error: error instanceof Error ? error.message : "Failed to finish game",
     }
   }
 }
@@ -295,7 +310,7 @@ export async function getUserCoins(ownerAddress: string) {
     console.error("[v0] getUserCoins: Error getting user coins:", error)
     return {
       success: false,
-      error: error.message || "Failed to get coins",
+      error: error instanceof Error ? error.message : "Failed to get coins",
     }
   }
 }
