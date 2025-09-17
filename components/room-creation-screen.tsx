@@ -127,8 +127,8 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       setSuccess("Creating blockchain bet, please sign the transaction in your wallet...")
 
       // Call the SUI contract to create the bet FIRST
-      const gasCoinId = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
-        ? coinSelection.gasCoin.coinObjectId 
+      const gasCoinObj = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
+        ? coinSelection.gasCoin 
         : undefined
       
       const contractResult = await criarAposta(
@@ -136,7 +136,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         coinSelection.bettingCoin.coinObjectId,
         betAmountMist,
         signAndExecuteTransaction,
-        gasCoinId
+        gasCoinObj
       )
 
       if (!contractResult.success || !contractResult.treasuryId) {
@@ -244,8 +244,8 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           }
 
           // Call the SUI contract to join the bet
-          const gasCoinId = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
-            ? coinSelection.gasCoin.coinObjectId 
+          const gasCoinObj = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
+            ? coinSelection.gasCoin 
             : undefined
           
           const contractResult = await entrarAposta(
@@ -254,7 +254,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
             coinSelection.bettingCoin.coinObjectId,
             betAmountMist,
             signAndExecuteTransaction,
-            gasCoinId
+            gasCoinObj
           )
 
           if (!contractResult.success) {
@@ -343,8 +343,8 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           }
 
           // Call the SUI contract to join the bet
-          const gasCoinId = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
-            ? coinSelection.gasCoin.coinObjectId 
+          const gasCoinObj = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
+            ? coinSelection.gasCoin 
             : undefined
           
           const contractResult = await entrarAposta(
@@ -353,7 +353,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
             coinSelection.bettingCoin.coinObjectId,
             betAmountMist,
             signAndExecuteTransaction,
-            gasCoinId
+            gasCoinObj
           )
 
           if (!contractResult.success) {
