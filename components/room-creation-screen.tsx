@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { WalletConnectPopup } from "@/components/wallet-connect-popup"
 import { createRoom, joinRoom, getAvailableRooms, updateRoomTreasury } from "@/app/actions/game-actions"
 import { criarAposta, entrarAposta, getUserCoins, suiToMist } from "@/lib/sui-contract"
+import { PACKAGE_ID, NETWORK } from "@/lib/sui-client"
 import { Plus, Hash, Sparkles, GamepadIcon, Users, Coins, AlertTriangle, CheckCircle } from "lucide-react"
 import type { GameRoom } from "@/lib/game-store"
 
@@ -48,10 +49,20 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
   useEffect(() => {
     const fetchUserCoins = async () => {
       if (connected && account?.address) {
+        console.log("[v0] Fetching user coins for address:", account.address)
         const result = await getUserCoins(account.address)
+        console.log("[v0] getUserCoins result:", result)
+        
         if (result.success) {
           setUserCoins(result.coins || [])
+          console.log("[v0] Successfully fetched", result.coins?.length || 0, "coins")
+        } else {
+          console.error("[v0] Failed to get user coins:", result.error)
+          setUserCoins([])
+          // Don't set error here as it might be a temporary network issue
         }
+      } else {
+        setUserCoins([])
       }
     }
 
@@ -76,9 +87,22 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       let treasuryId = null
       
       if (userCoins.length === 0) {
-        setError("No SUI coins available for betting. Please fund your wallet.")
-        setLoading(false)
-        return
+        console.log("[v0] No coins found. Attempting to refresh coin data...")
+        // Try to refresh coin data in case it's a timing issue
+        const coinRefreshResult = await getUserCoins(account.address)
+        console.log("[v0] Coin refresh result:", coinRefreshResult)
+        
+        if (coinRefreshResult.success && coinRefreshResult.coins && coinRefreshResult.coins.length > 0) {
+          setUserCoins(coinRefreshResult.coins)
+          console.log("[v0] Successfully refreshed", coinRefreshResult.coins.length, "coins")
+        } else {
+          const errorMsg = coinRefreshResult.success 
+            ? "No SUI coins available for betting. Please fund your wallet." 
+            : `Failed to check SUI balance: ${coinRefreshResult.error || "Unknown error"}`
+          setError(errorMsg)
+          setLoading(false)
+          return
+        }
       }
 
       // Get the largest coin to use for betting
@@ -171,9 +195,22 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         try {
           // Find a suitable coin for the bet
           if (userCoins.length === 0) {
-            setError("No SUI coins available for betting. Please fund your wallet.")
-            setLoading(false)
-            return
+            console.log("[v0] No coins found for join. Attempting to refresh coin data...")
+            // Try to refresh coin data in case it's a timing issue
+            const coinRefreshResult = await getUserCoins(account.address)
+            console.log("[v0] Join coin refresh result:", coinRefreshResult)
+            
+            if (coinRefreshResult.success && coinRefreshResult.coins && coinRefreshResult.coins.length > 0) {
+              setUserCoins(coinRefreshResult.coins)
+              console.log("[v0] Successfully refreshed", coinRefreshResult.coins.length, "coins for join")
+            } else {
+              const errorMsg = coinRefreshResult.success 
+                ? "No SUI coins available for betting. Please fund your wallet." 
+                : `Failed to check SUI balance: ${coinRefreshResult.error || "Unknown error"}`
+              setError(errorMsg)
+              setLoading(false)
+              return
+            }
           }
 
           const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
@@ -244,9 +281,22 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         try {
           // Find a suitable coin for the bet
           if (userCoins.length === 0) {
-            setError("No SUI coins available for betting. Please fund your wallet.")
-            setLoading(false)
-            return
+            console.log("[v0] No coins found for join room. Attempting to refresh coin data...")
+            // Try to refresh coin data in case it's a timing issue
+            const coinRefreshResult = await getUserCoins(account.address)
+            console.log("[v0] Join room coin refresh result:", coinRefreshResult)
+            
+            if (coinRefreshResult.success && coinRefreshResult.coins && coinRefreshResult.coins.length > 0) {
+              setUserCoins(coinRefreshResult.coins)
+              console.log("[v0] Successfully refreshed", coinRefreshResult.coins.length, "coins for join room")
+            } else {
+              const errorMsg = coinRefreshResult.success 
+                ? "No SUI coins available for betting. Please fund your wallet." 
+                : `Failed to check SUI balance: ${coinRefreshResult.error || "Unknown error"}`
+              setError(errorMsg)
+              setLoading(false)
+              return
+            }
           }
 
           const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
@@ -319,6 +369,21 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           </div>
         )}
       </div>
+
+      {/* Configuration Warning */}
+      {PACKAGE_ID === "0x0" && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Configuration Required:</strong> Please set NEXT_PUBLIC_PACKAGE_ID in your .env file to your deployed SUI Move package ID. 
+            Currently using default value which will cause betting functions to fail.
+            <br />
+            <span className="text-xs text-muted-foreground mt-1 block">
+              Network: {NETWORK} | Package ID: {PACKAGE_ID}
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Error and Success Messages */}
       {error && (

@@ -16,6 +16,15 @@ export async function criarAposta(
   signAndExecuteTransaction: any
 ) {
   try {
+    // Check if package ID is properly configured
+    if (PACKAGE_ID === "0x0") {
+      throw new Error("Package ID not configured. Please set NEXT_PUBLIC_PACKAGE_ID environment variable.")
+    }
+
+    console.log("[v0] criarAposta: Creating bet with package:", PACKAGE_ID)
+    console.log("[v0] criarAposta: Amount:", amount, "MIST")
+    console.log("[v0] criarAposta: Coin object ID:", coinObjectId)
+
     const tx = new Transaction()
     
     // Split the coin to get the exact amount needed
@@ -27,13 +36,15 @@ export async function criarAposta(
       arguments: [splitCoin, tx.pure.u64(amount)],
     })
 
+    console.log("[v0] criarAposta: Transaction prepared, executing...")
+
     // Execute the transaction
     const result = await signAndExecuteTransaction({
       transaction: tx,
-      chain: 'sui:devnet',
+      chain: `sui:${NETWORK}`,
     })
 
-    console.log("criar_aposta transaction result:", result)
+    console.log("[v0] criarAposta: Transaction result:", result)
 
     // Get the created objects to find the Treasury object
     const txDetails = await suiClient.getTransactionBlock({
@@ -86,6 +97,16 @@ export async function entrarAposta(
   signAndExecuteTransaction: any
 ) {
   try {
+    // Check if package ID is properly configured
+    if (PACKAGE_ID === "0x0") {
+      throw new Error("Package ID not configured. Please set NEXT_PUBLIC_PACKAGE_ID environment variable.")
+    }
+
+    console.log("[v0] entrarAposta: Joining bet with package:", PACKAGE_ID)
+    console.log("[v0] entrarAposta: Amount:", amount, "MIST")
+    console.log("[v0] entrarAposta: Treasury ID:", treasuryId)
+    console.log("[v0] entrarAposta: Coin object ID:", coinObjectId)
+
     const tx = new Transaction()
     
     // Split the coin to get the exact amount needed
@@ -97,13 +118,15 @@ export async function entrarAposta(
       arguments: [tx.object(treasuryId), splitCoin, tx.pure.u64(amount)],
     })
 
+    console.log("[v0] entrarAposta: Transaction prepared, executing...")
+
     // Execute the transaction
     const result = await signAndExecuteTransaction({
       transaction: tx,
-      chain: 'sui:devnet',
+      chain: `sui:${NETWORK}`,
     })
 
-    console.log("entrar_aposta transaction result:", result)
+    console.log("[v0] entrarAposta: Transaction result:", result)
 
     return {
       success: true,
@@ -142,7 +165,7 @@ export async function finishGame(
     // Execute the transaction
     const result = await signAndExecuteTransaction({
       transaction: tx,
-      chain: 'sui:devnet',
+      chain: `sui:${NETWORK}`,
     })
 
     console.log("finish_game transaction result:", result)
@@ -167,17 +190,24 @@ export async function finishGame(
  */
 export async function getUserCoins(ownerAddress: string) {
   try {
+    console.log("[v0] getUserCoins: Fetching coins for address:", ownerAddress)
+    console.log("[v0] getUserCoins: Using network:", NETWORK)
+    console.log("[v0] getUserCoins: Using package ID:", PACKAGE_ID)
+    
     const coins = await suiClient.getCoins({
       owner: ownerAddress,
       coinType: '0x2::sui::SUI',
     })
+
+    console.log("[v0] getUserCoins: Raw response:", coins)
+    console.log("[v0] getUserCoins: Found", coins.data.length, "coins")
 
     return {
       success: true,
       coins: coins.data,
     }
   } catch (error) {
-    console.error("Error getting user coins:", error)
+    console.error("[v0] getUserCoins: Error getting user coins:", error)
     return {
       success: false,
       error: error.message || "Failed to get coins",
