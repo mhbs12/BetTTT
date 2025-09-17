@@ -24,16 +24,15 @@ export async function criarAposta(
     console.log("[v0] criarAposta: Creating bet with package:", PACKAGE_ID)
     console.log("[v0] criarAposta: Amount:", amount, "MIST")
     console.log("[v0] criarAposta: Coin object ID:", coinObjectId)
+    console.log("[v0] criarAposta: Note: Passing original coin, Move function handles splitting")
 
     const tx = new Transaction()
     
-    // Split the coin to get the exact amount needed
-    const [splitCoin] = tx.splitCoins(tx.object(coinObjectId), [amount])
-    
-    // Call the criar_aposta function
+    // Call the criar_aposta function with the original coin and amount
+    // The Move function will handle the coin splitting internally
     tx.moveCall({
       target: `${PACKAGE_ID}::${MODULE_NAME}::criar_aposta`,
-      arguments: [splitCoin, tx.pure.u64(amount)],
+      arguments: [tx.object(coinObjectId), tx.pure.u64(amount)],
     })
 
     console.log("[v0] criarAposta: Transaction prepared, executing...")
@@ -106,16 +105,15 @@ export async function entrarAposta(
     console.log("[v0] entrarAposta: Amount:", amount, "MIST")
     console.log("[v0] entrarAposta: Treasury ID:", treasuryId)
     console.log("[v0] entrarAposta: Coin object ID:", coinObjectId)
+    console.log("[v0] entrarAposta: Note: Passing original coin, Move function handles splitting")
 
     const tx = new Transaction()
     
-    // Split the coin to get the exact amount needed
-    const [splitCoin] = tx.splitCoins(tx.object(coinObjectId), [amount])
-    
-    // Call the entrar_aposta function
+    // Call the entrar_aposta function with the original coin and amount
+    // The Move function will handle the coin splitting internally
     tx.moveCall({
       target: `${PACKAGE_ID}::${MODULE_NAME}::entrar_aposta`,
-      arguments: [tx.object(treasuryId), splitCoin, tx.pure.u64(amount)],
+      arguments: [tx.object(treasuryId), tx.object(coinObjectId), tx.pure.u64(amount)],
     })
 
     console.log("[v0] entrarAposta: Transaction prepared, executing...")
