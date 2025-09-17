@@ -28,7 +28,7 @@ export async function criarAposta(
 
     const tx = new Transaction()
     
-    console.log("[v0] criarAposta: Letting SUI SDK automatically handle gas payment")
+    console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
     
     // Call the criar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
@@ -39,10 +39,14 @@ export async function criarAposta(
 
     console.log("[v0] criarAposta: Transaction prepared, executing...")
 
-    // Execute the transaction
+    // Execute the transaction with options to ensure gas payment works
     const result = await signAndExecuteTransaction({
       transaction: tx,
       chain: `sui:${NETWORK}`,
+      options: {
+        showEffects: true,
+        showBalanceChanges: true,
+      }
     })
 
     console.log("[v0] criarAposta: Transaction result:", result)
@@ -111,7 +115,7 @@ export async function entrarAposta(
 
     const tx = new Transaction()
     
-    console.log("[v0] entrarAposta: Letting SUI SDK automatically handle gas payment")
+    console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
     
     // Call the entrar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
@@ -122,10 +126,14 @@ export async function entrarAposta(
 
     console.log("[v0] entrarAposta: Transaction prepared, executing...")
 
-    // Execute the transaction
+    // Execute the transaction with options to ensure gas payment works
     const result = await signAndExecuteTransaction({
       transaction: tx,
       chain: `sui:${NETWORK}`,
+      options: {
+        showEffects: true,
+        showBalanceChanges: true,
+      }
     })
 
     console.log("[v0] entrarAposta: Transaction result:", result)
@@ -167,7 +175,7 @@ export async function finishGame(
 
     const tx = new Transaction()
     
-    console.log("[v0] finishGame: Letting SUI SDK automatically handle gas payment")
+    console.log("[v0] finishGame: SUI SDK will handle gas payment automatically from available coins")
     
     // Call the finish_game function
     tx.moveCall({
@@ -177,10 +185,14 @@ export async function finishGame(
 
     console.log("[v0] finishGame: Transaction prepared, executing...")
 
-    // Execute the transaction
+    // Execute the transaction with options to ensure gas payment works
     const result = await signAndExecuteTransaction({
       transaction: tx,
       chain: `sui:${NETWORK}`,
+      options: {
+        showEffects: true,
+        showBalanceChanges: true,
+      }
     })
 
     console.log("finish_game transaction result:", result)
@@ -234,7 +246,82 @@ export async function getUserCoins(ownerAddress: string) {
 }
 
 /**
- * Selects a suitable coin for betting (gas will be handled automatically by SUI SDK)
+ * Selects coins for betting with gas coin strategy - provides both betting coin and gas coin options
+ * @param coins - Available coins
+ * @param betAmountMist - Required bet amount in MIST
+ * @returns Object with betting coin validation and gas strategy
+ */
+export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist: string) {
+  const betAmount = parseInt(betAmountMist)
+  const gasReserveMist = 10_000_000 // 0.01 SUI
+  
+  console.log("[v0] selectCoinsForBettingWithGasStrategy: Analyzing", coins.length, "coins")
+  console.log("[v0] selectCoinsForBettingWithGasStrategy: Bet amount:", betAmount, "MIST")
+  console.log("[v0] selectCoinsForBettingWithGasStrategy: Gas reserve:", gasReserveMist, "MIST")
+  
+  // Strategy 1: Find a single coin that can handle both bet and gas
+  const singleCoinSolution = coins.find(coin => parseInt(coin.balance) >= betAmount + gasReserveMist)
+  
+  if (singleCoinSolution) {
+    console.log("[v0] Strategy 1 - Single coin solution found:", singleCoinSolution.coinObjectId)
+    return {
+      strategy: "single_coin",
+      bettingCoin: singleCoinSolution,
+      gasCoin: singleCoinSolution,
+      isValid: true,
+      gasReserve: gasReserveMist
+    }
+  }
+  
+  // Strategy 2: Find separate coins for betting and gas
+  const bettingCoin = coins.find(coin => parseInt(coin.balance) >= betAmount)
+  const gasCoin = coins.find(coin => 
+    coin.coinObjectId !== bettingCoin?.coinObjectId && 
+    parseInt(coin.balance) >= gasReserveMist
+  )
+  
+  if (bettingCoin && gasCoin) {
+    console.log("[v0] Strategy 2 - Separate coins solution found")
+    console.log("[v0] Betting coin:", bettingCoin.coinObjectId)
+    console.log("[v0] Gas coin:", gasCoin.coinObjectId)
+    return {
+      strategy: "separate_coins",
+      bettingCoin,
+      gasCoin,
+      isValid: true,
+      gasReserve: gasReserveMist
+    }
+  }
+  
+  // Strategy 3: Check if we have enough total balance but need coin consolidation
+  const totalBalance = coins.reduce((sum, coin) => sum + parseInt(coin.balance), 0)
+  
+  if (totalBalance >= betAmount + gasReserveMist) {
+    return {
+      strategy: "needs_consolidation",
+      bettingCoin: null,
+      gasCoin: null,
+      isValid: false,
+      error: `Sufficient total balance (${mistToSui(totalBalance.toString())} SUI) but needs coin consolidation. Consider consolidating your coins first.`,
+      totalBalance,
+      requiredBalance: betAmount + gasReserveMist
+    }
+  }
+  
+  // Strategy 4: Insufficient balance
+  return {
+    strategy: "insufficient_balance",
+    bettingCoin: null,
+    gasCoin: null,
+    isValid: false,
+    error: `Insufficient balance. Need ${mistToSui((betAmount + gasReserveMist).toString())} SUI (${mistToSui(betAmount.toString())} for bet + ${mistToSui(gasReserveMist.toString())} for gas), but only have ${mistToSui(totalBalance.toString())} SUI`,
+    totalBalance,
+    requiredBalance: betAmount + gasReserveMist
+  }
+}
+
+/**
+ * Selects a suitable coin for betting with proper gas fee reservation
  * @param coins - Available coins
  * @param betAmountMist - Required bet amount in MIST
  * @returns Object with betting coin validation
@@ -242,21 +329,42 @@ export async function getUserCoins(ownerAddress: string) {
 export function selectCoinsForBetting(coins: any[], betAmountMist: string) {
   const betAmount = parseInt(betAmountMist)
   
-  // Find any coin that can cover the bet amount
-  // SUI SDK will automatically handle gas payment from available coins
-  const bettingCoin = coins.find(coin => parseInt(coin.balance) >= betAmount)
+  // Reserve gas fees (0.01 SUI = 10,000,000 MIST) - reasonable estimate for most transactions
+  const gasReserveMist = 10_000_000
+  const totalRequiredBalance = betAmount + gasReserveMist
+  
+  console.log("[v0] selectCoinsForBetting: Bet amount:", betAmount, "MIST")
+  console.log("[v0] selectCoinsForBetting: Gas reserve:", gasReserveMist, "MIST")
+  console.log("[v0] selectCoinsForBetting: Total required:", totalRequiredBalance, "MIST")
+  
+  // Find a coin that can cover both the bet amount and gas fees
+  const bettingCoin = coins.find(coin => parseInt(coin.balance) >= totalRequiredBalance)
   
   if (!bettingCoin) {
-    return {
-      bettingCoin: null,
-      isValid: false,
-      error: "No coin with sufficient balance for betting amount"
+    // Check if there's enough total balance across all coins
+    const totalBalance = coins.reduce((sum, coin) => sum + parseInt(coin.balance), 0)
+    
+    if (totalBalance < totalRequiredBalance) {
+      return {
+        bettingCoin: null,
+        isValid: false,
+        error: `Insufficient balance. Need ${mistToSui(totalRequiredBalance.toString())} SUI (${mistToSui(betAmount.toString())} for bet + ${mistToSui(gasReserveMist.toString())} for gas), but only have ${mistToSui(totalBalance.toString())} SUI`
+      }
+    } else {
+      return {
+        bettingCoin: null,
+        isValid: false,
+        error: `No single coin with sufficient balance. Need one coin with at least ${mistToSui(totalRequiredBalance.toString())} SUI (bet + gas). Consider consolidating your coins.`
+      }
     }
   }
   
+  console.log("[v0] selectCoinsForBetting: Selected coin with balance:", bettingCoin.balance, "MIST")
+  
   return {
     bettingCoin,
-    isValid: true
+    isValid: true,
+    gasReserve: gasReserveMist
   }
 }
 
