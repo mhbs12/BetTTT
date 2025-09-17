@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { WalletConnectPopup } from "@/components/wallet-connect-popup"
 import { createRoom, joinRoom, getAvailableRooms, updateRoomTreasury } from "@/app/actions/game-actions"
-import { criarAposta, entrarAposta, getUserCoins, suiToMist } from "@/lib/sui-contract"
+import { criarAposta, entrarAposta, getUserCoins, suiToMist, selectCoinsForBetting } from "@/lib/sui-contract"
 import { PACKAGE_ID, NETWORK } from "@/lib/sui-client"
 import { Plus, Hash, Sparkles, GamepadIcon, Users, Coins, AlertTriangle, CheckCircle } from "lucide-react"
 import type { GameRoom } from "@/lib/game-store"
@@ -105,16 +105,18 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         }
       }
 
-      // Get the largest coin to use for betting
-      const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
-      const coinToUse = sortedCoins[0]
+      // Use improved coin selection for betting
       const betAmountMist = suiToMist(betAmount)
-
-      if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
-        setError(`Insufficient SUI balance. Need ${betAmount} SUI for this bet plus additional SUI for gas fees.`)
+      const coinSelection = selectCoinsForBetting(userCoins, betAmountMist)
+      
+      if (!coinSelection.isValid) {
+        setError(coinSelection.error || "Unable to select appropriate coins for betting")
         setLoading(false)
         return
       }
+
+      console.log("[v0] Selected optimal coin for betting:", coinSelection.bettingCoin.coinObjectId)
+      console.log("[v0] Selected coins for gas:", coinSelection.gasCoins.length)
 
       console.log("[v0] Creating SUI contract bet first...")
       setSuccess("Creating blockchain bet, please sign the transaction in your wallet...")
@@ -122,7 +124,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       // Call the SUI contract to create the bet FIRST
       const contractResult = await criarAposta(
         account.address,
-        coinToUse.coinObjectId,
+        coinSelection.bettingCoin.coinObjectId,
         betAmountMist,
         signAndExecuteTransaction
       )
@@ -213,21 +215,24 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
             }
           }
 
-          const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
-          const coinToUse = sortedCoins[0]
+          // Use improved coin selection for betting
           const betAmountMist = suiToMist(joinBetAmount)
-
-          if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
-            setError("Insufficient SUI balance for this bet plus gas fees.")
+          const coinSelection = selectCoinsForBetting(userCoins, betAmountMist)
+          
+          if (!coinSelection.isValid) {
+            setError(coinSelection.error || "Unable to select appropriate coins for betting")
             setLoading(false)
             return
           }
+
+          console.log("[v0] Selected optimal coin for joining bet:", coinSelection.bettingCoin.coinObjectId)
+          console.log("[v0] Selected coins for gas:", coinSelection.gasCoins.length)
 
           // Call the SUI contract to join the bet
           const contractResult = await entrarAposta(
             account.address,
             roomToJoin.treasuryId,
-            coinToUse.coinObjectId,
+            coinSelection.bettingCoin.coinObjectId,
             betAmountMist,
             signAndExecuteTransaction
           )
@@ -299,21 +304,24 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
             }
           }
 
-          const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
-          const coinToUse = sortedCoins[0]
+          // Use improved coin selection for betting
           const betAmountMist = suiToMist(room.betAmount)
-
-          if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
-            setError(`Insufficient SUI balance. Need ${room.betAmount} SUI for this bet plus additional SUI for gas fees.`)
+          const coinSelection = selectCoinsForBetting(userCoins, betAmountMist)
+          
+          if (!coinSelection.isValid) {
+            setError(coinSelection.error || "Unable to select appropriate coins for betting")
             setLoading(false)
             return
           }
+
+          console.log("[v0] Selected optimal coin for joining available room:", coinSelection.bettingCoin.coinObjectId)
+          console.log("[v0] Selected coins for gas:", coinSelection.gasCoins.length)
 
           // Call the SUI contract to join the bet
           const contractResult = await entrarAposta(
             account.address,
             room.treasuryId,
-            coinToUse.coinObjectId,
+            coinSelection.bettingCoin.coinObjectId,
             betAmountMist,
             signAndExecuteTransaction
           )
