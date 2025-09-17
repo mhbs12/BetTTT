@@ -48,9 +48,17 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
   useEffect(() => {
     const fetchUserCoins = async () => {
       if (connected && account?.address) {
+        console.log("[v0] Fetching user coins for address:", account.address)
         const result = await getUserCoins(account.address)
+        console.log("[v0] getUserCoins result:", result)
+        
         if (result.success) {
           setUserCoins(result.coins || [])
+          console.log("[v0] User coins fetched successfully:", result.coins?.length || 0, "coins")
+        } else {
+          console.error("[v0] Failed to fetch user coins:", result.error)
+          // Don't reset userCoins to empty array on error - keep existing coins
+          // This prevents false "No SUI coins" errors when there are temporary network issues
         }
       }
     }
@@ -74,15 +82,35 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       
       // First, check if we have coins and validate the bet
       let treasuryId = null
+      let coinsToUse = userCoins;
       
-      if (userCoins.length === 0) {
+      // If no coins are available, try to refetch them once before showing error
+      if (coinsToUse.length === 0) {
+        console.log("[v0] No coins cached, attempting to refetch...")
+        setSuccess("Checking your wallet balance...")
+        
+        const refreshResult = await getUserCoins(account.address)
+        if (refreshResult.success && refreshResult.coins && refreshResult.coins.length > 0) {
+          coinsToUse = refreshResult.coins;
+          setUserCoins(refreshResult.coins)
+          console.log("[v0] Successfully refetched coins:", refreshResult.coins.length)
+        } else {
+          console.error("[v0] Failed to fetch coins on retry:", refreshResult.error)
+          setError("Unable to fetch your SUI balance. Please check your wallet connection and try again.")
+          setLoading(false)
+          return
+        }
+      }
+      
+      // Check if we have coins after potential refetch
+      if (coinsToUse.length === 0) {
         setError("No SUI coins available for betting. Please fund your wallet.")
         setLoading(false)
         return
       }
 
       // Get the largest coin to use for betting
-      const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+      const sortedCoins = coinsToUse.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
       const coinToUse = sortedCoins[0]
       const betAmountMist = suiToMist(betAmount)
 
@@ -170,13 +198,34 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       if (roomToJoin.treasuryId && roomToJoin.betAmount) {
         try {
           // Find a suitable coin for the bet
-          if (userCoins.length === 0) {
+          let coinsToUse = userCoins;
+          
+          // If no coins are available, try to refetch them once before showing error
+          if (coinsToUse.length === 0) {
+            console.log("[v0] No coins cached for join room, attempting to refetch...")
+            setSuccess("Checking your wallet balance...")
+            
+            const refreshResult = await getUserCoins(account.address)
+            if (refreshResult.success && refreshResult.coins && refreshResult.coins.length > 0) {
+              coinsToUse = refreshResult.coins;
+              setUserCoins(refreshResult.coins)
+              console.log("[v0] Successfully refetched coins for join:", refreshResult.coins.length)
+            } else {
+              console.error("[v0] Failed to fetch coins on retry for join:", refreshResult.error)
+              setError("Unable to fetch your SUI balance. Please check your wallet connection and try again.")
+              setLoading(false)
+              return
+            }
+          }
+          
+          // Check if we have coins after potential refetch
+          if (coinsToUse.length === 0) {
             setError("No SUI coins available for betting. Please fund your wallet.")
             setLoading(false)
             return
           }
 
-          const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+          const sortedCoins = coinsToUse.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
           const coinToUse = sortedCoins[0]
           const betAmountMist = suiToMist(joinBetAmount)
 
@@ -243,13 +292,34 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       if (room.treasuryId && room.betAmount) {
         try {
           // Find a suitable coin for the bet
-          if (userCoins.length === 0) {
+          let coinsToUse = userCoins;
+          
+          // If no coins are available, try to refetch them once before showing error
+          if (coinsToUse.length === 0) {
+            console.log("[v0] No coins cached for join available room, attempting to refetch...")
+            setSuccess("Checking your wallet balance...")
+            
+            const refreshResult = await getUserCoins(account.address)
+            if (refreshResult.success && refreshResult.coins && refreshResult.coins.length > 0) {
+              coinsToUse = refreshResult.coins;
+              setUserCoins(refreshResult.coins)
+              console.log("[v0] Successfully refetched coins for join available:", refreshResult.coins.length)
+            } else {
+              console.error("[v0] Failed to fetch coins on retry for join available:", refreshResult.error)
+              setError("Unable to fetch your SUI balance. Please check your wallet connection and try again.")
+              setLoading(false)
+              return
+            }
+          }
+          
+          // Check if we have coins after potential refetch
+          if (coinsToUse.length === 0) {
             setError("No SUI coins available for betting. Please fund your wallet.")
             setLoading(false)
             return
           }
 
-          const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+          const sortedCoins = coinsToUse.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
           const coinToUse = sortedCoins[0]
           const betAmountMist = suiToMist(room.betAmount)
 
