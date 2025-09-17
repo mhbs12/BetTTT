@@ -32,15 +32,25 @@ export async function criarAposta(
       throw new Error("No SUI coins available for gas payment")
     }
 
+    // Use improved coin selection strategy
+    const coinSelection = selectCoinsForBetting(userCoinsResult.coins, amount)
+    if (!coinSelection.isValid) {
+      throw new Error(coinSelection.error || "Unable to select appropriate coins for betting")
+    }
+
+    // Verify the provided coinObjectId matches our selected betting coin
+    if (coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
+      console.log("[v0] criarAposta: Provided coin doesn't match optimal selection, using provided coin anyway")
+      // Fallback to original logic but with limited gas coins
+      const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
+      const gasCoins = availableCoins.length > 0 ? availableCoins.slice(0, 2) : userCoinsResult.coins.slice(0, 2)
+      coinSelection.gasCoins = gasCoins
+    }
+
     const tx = new Transaction()
     
-    // Set gas payment explicitly to avoid "No valid gas coins found" error
-    // Use available coins for gas payment, prioritizing coins other than the betting coin
-    const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
-    const gasCoins = availableCoins.length > 0 ? availableCoins : userCoinsResult.coins
-    
-    console.log("[v0] criarAposta: Setting gas payment with", gasCoins.length, "available coins")
-    tx.setGasPayment(gasCoins.map(coin => ({
+    console.log("[v0] criarAposta: Setting gas payment with", coinSelection.gasCoins.length, "coins (limited for safety)")
+    tx.setGasPayment(coinSelection.gasCoins.map(coin => ({
       objectId: coin.coinObjectId,
       version: coin.version,
       digest: coin.digest
@@ -131,15 +141,25 @@ export async function entrarAposta(
       throw new Error("No SUI coins available for gas payment")
     }
 
+    // Use improved coin selection strategy
+    const coinSelection = selectCoinsForBetting(userCoinsResult.coins, amount)
+    if (!coinSelection.isValid) {
+      throw new Error(coinSelection.error || "Unable to select appropriate coins for betting")
+    }
+
+    // Verify the provided coinObjectId matches our selected betting coin
+    if (coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
+      console.log("[v0] entrarAposta: Provided coin doesn't match optimal selection, using provided coin anyway")
+      // Fallback to original logic but with limited gas coins
+      const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
+      const gasCoins = availableCoins.length > 0 ? availableCoins.slice(0, 2) : userCoinsResult.coins.slice(0, 2)
+      coinSelection.gasCoins = gasCoins
+    }
+
     const tx = new Transaction()
     
-    // Set gas payment explicitly to avoid "No valid gas coins found" error
-    // Use available coins for gas payment, prioritizing coins other than the betting coin
-    const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
-    const gasCoins = availableCoins.length > 0 ? availableCoins : userCoinsResult.coins
-    
-    console.log("[v0] entrarAposta: Setting gas payment with", gasCoins.length, "available coins")
-    tx.setGasPayment(gasCoins.map(coin => ({
+    console.log("[v0] entrarAposta: Setting gas payment with", coinSelection.gasCoins.length, "coins (limited for safety)")
+    tx.setGasPayment(coinSelection.gasCoins.map(coin => ({
       objectId: coin.coinObjectId,
       version: coin.version,
       digest: coin.digest
@@ -206,8 +226,11 @@ export async function finishGame(
     const tx = new Transaction()
     
     // Set gas payment explicitly to avoid "No valid gas coins found" error
-    console.log("[v0] finishGame: Setting gas payment with", userCoinsResult.coins.length, "available coins")
-    tx.setGasPayment(userCoinsResult.coins.map(coin => ({
+    // Use a limited number of coins for gas payment to prevent draining wallet
+    const gasCoins = userCoinsResult.coins.slice(0, 2) // Limit to 2 coins for safety
+    
+    console.log("[v0] finishGame: Setting gas payment with", gasCoins.length, "coins (limited for safety)")
+    tx.setGasPayment(gasCoins.map(coin => ({
       objectId: coin.coinObjectId,
       version: coin.version,
       digest: coin.digest
@@ -243,7 +266,7 @@ export async function finishGame(
 }
 
 /**
- * Gets user's SUI coins for betting
+ * Gets user's SUI coins for betting with better validation
  * @param ownerAddress - Address of the coin owner
  * @returns Promise with available coins
  */
@@ -261,9 +284,12 @@ export async function getUserCoins(ownerAddress: string) {
     console.log("[v0] getUserCoins: Raw response:", coins)
     console.log("[v0] getUserCoins: Found", coins.data.length, "coins")
 
+    // Sort coins by balance (descending) to prioritize larger coins for betting
+    const sortedCoins = coins.data.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+
     return {
       success: true,
-      coins: coins.data,
+      coins: sortedCoins,
     }
   } catch (error) {
     console.error("[v0] getUserCoins: Error getting user coins:", error)
@@ -271,6 +297,56 @@ export async function getUserCoins(ownerAddress: string) {
       success: false,
       error: error.message || "Failed to get coins",
     }
+  }
+}
+
+/**
+ * Selects the best coin for betting and gas payment strategy
+ * @param coins - Available coins
+ * @param betAmountMist - Required bet amount in MIST
+ * @returns Object with betting coin and gas coins
+ */
+export function selectCoinsForBetting(coins: any[], betAmountMist: string) {
+  const betAmount = parseInt(betAmountMist)
+  const estimatedGasFee = 10_000_000 // ~0.01 SUI for gas estimation
+  
+  // Find a coin that can cover both bet amount and gas
+  const suitableCoin = coins.find(coin => parseInt(coin.balance) >= betAmount + estimatedGasFee)
+  
+  if (suitableCoin) {
+    // Use the same coin for betting and gas if it's large enough
+    return {
+      bettingCoin: suitableCoin,
+      gasCoins: [suitableCoin],
+      isValid: true
+    }
+  }
+  
+  // If no single coin can cover both, find a coin for betting and separate gas coins
+  const bettingCoin = coins.find(coin => parseInt(coin.balance) >= betAmount)
+  if (!bettingCoin) {
+    return {
+      bettingCoin: null,
+      gasCoins: [],
+      isValid: false,
+      error: "No coin with sufficient balance for betting amount"
+    }
+  }
+  
+  // Find coins for gas payment (excluding the betting coin)
+  const gasCoins = coins
+    .filter(coin => coin.coinObjectId !== bettingCoin.coinObjectId)
+    .slice(0, 2) // Limit to 2 coins for gas
+  
+  if (gasCoins.length === 0) {
+    // Fallback: use the betting coin for gas as well, but limit it
+    gasCoins.push(bettingCoin)
+  }
+  
+  return {
+    bettingCoin,
+    gasCoins,
+    isValid: true
   }
 }
 
