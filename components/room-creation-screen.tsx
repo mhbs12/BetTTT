@@ -72,8 +72,50 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
     try {
       const playerName = `${account.address.slice(0, 6)}...${account.address.slice(-4)}`
       
-      // First create the room without treasury ID
-      const roomResult = await createRoom(roomName.trim(), account.address, playerName, betAmount)
+      // First, check if we have coins and validate the bet
+      let treasuryId = null
+      
+      if (userCoins.length === 0) {
+        setError("No SUI coins available for betting. Please fund your wallet.")
+        setLoading(false)
+        return
+      }
+
+      // Get the largest coin to use for betting
+      const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+      const coinToUse = sortedCoins[0]
+      const betAmountMist = suiToMist(betAmount)
+
+      if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
+        setError(`Insufficient SUI balance. Need ${betAmount} SUI for this bet.`)
+        setLoading(false)
+        return
+      }
+
+      console.log("[v0] Creating SUI contract bet first...")
+      setSuccess("Creating blockchain bet, please sign the transaction in your wallet...")
+
+      // Call the SUI contract to create the bet FIRST
+      const contractResult = await criarAposta(
+        account.address,
+        coinToUse.coinObjectId,
+        betAmountMist,
+        signAndExecuteTransaction
+      )
+
+      if (!contractResult.success || !contractResult.treasuryId) {
+        console.error("[v0] Failed to create SUI contract bet:", contractResult.error)
+        setError(`Failed to create blockchain bet: ${contractResult.error || "Transaction failed"}`)
+        setLoading(false)
+        return
+      }
+
+      treasuryId = contractResult.treasuryId
+      console.log("[v0] SUI contract bet created successfully:", treasuryId)
+      setSuccess("Blockchain bet confirmed! Creating room...")
+
+      // Now create the room with the treasury ID
+      const roomResult = await createRoom(roomName.trim(), account.address, playerName, betAmount, treasuryId)
       
       if (!roomResult.success || !roomResult.room) {
         console.error("[v0] Failed to create room:", roomResult.error)
@@ -82,66 +124,9 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         return
       }
 
-      console.log("[v0] Room created successfully, attempting SUI contract integration...")
-
-      // Try to create SUI contract bet (this may fail, and that's OK)
-      let treasuryId = null
-      try {
-        // Find a suitable coin for the bet
-        if (userCoins.length === 0) {
-          console.log("[v0] No SUI coins available, creating room without contract betting")
-        } else {
-          // Get the largest coin to use for betting
-          const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
-          const coinToUse = sortedCoins[0]
-          const betAmountMist = suiToMist(betAmount)
-
-          if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
-            console.log("[v0] Insufficient balance for contract bet, creating room without contract betting")
-          } else {
-            // Call the SUI contract to create the bet
-            const contractResult = await criarAposta(
-              account.address,
-              coinToUse.coinObjectId,
-              betAmountMist,
-              signAndExecuteTransaction
-            )
-
-            if (contractResult.success && contractResult.treasuryId) {
-              treasuryId = contractResult.treasuryId
-              console.log("[v0] SUI contract bet created successfully:", treasuryId)
-            } else {
-              console.log("[v0] SUI contract bet failed, but room will still be created:", contractResult.error)
-            }
-          }
-        }
-      } catch (contractError) {
-        console.log("[v0] SUI contract integration failed, but room will still be created:", contractError)
-      }
-
-      // Update the room with the treasury ID if we have one
-      if (treasuryId) {
-        try {
-          const updateResult = await updateRoomTreasury(roomResult.room.id, treasuryId)
-          if (updateResult.success && updateResult.room) {
-            console.log("[v0] Room created with SUI contract integration successfully")
-            setSuccess("Room created successfully with blockchain betting!")
-            onRoomCreated(updateResult.room)
-          } else {
-            console.log("[v0] Treasury update failed, using room without contract:", updateResult.error)
-            setSuccess("Room created successfully (without blockchain betting)")
-            onRoomCreated(roomResult.room)
-          }
-        } catch (updateError) {
-          console.log("[v0] Treasury update error, using room without contract:", updateError)
-          setSuccess("Room created successfully (without blockchain betting)")
-          onRoomCreated(roomResult.room)
-        }
-      } else {
-        console.log("[v0] Room created without SUI contract integration")
-        setSuccess("Room created successfully (without blockchain betting)")
-        onRoomCreated(roomResult.room)
-      }
+      console.log("[v0] Room created successfully with SUI contract integration")
+      setSuccess("Room created successfully with blockchain betting!")
+      onRoomCreated(roomResult.room)
 
     } catch (error) {
       console.error("[v0] Error creating room:", error)
@@ -412,7 +397,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
               {loading ? (
                 <>
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                  Creating...
+                  Creating Bet & Room...
                 </>
               ) : (
                 <>
