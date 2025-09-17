@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { WalletConnectPopup } from "@/components/wallet-connect-popup"
-import { createRoom, joinRoom, getAvailableRooms } from "@/app/actions/game-actions"
-import { Plus, Hash, Sparkles, GamepadIcon, Users } from "lucide-react"
+import { createRoom, joinRoom, getAvailableRooms, updateRoomTreasury } from "@/app/actions/game-actions"
+import { criarAposta, entrarAposta, getUserCoins, suiToMist } from "@/lib/sui-contract"
+import { Plus, Hash, Sparkles, GamepadIcon, Users, Coins } from "lucide-react"
 import type { GameRoom } from "@/lib/game-store"
 
 interface RoomCreationScreenProps {
@@ -16,13 +17,16 @@ interface RoomCreationScreenProps {
 }
 
 export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
-  const { connected, account } = useWallet()
+  const { connected, account, signAndExecuteTransaction } = useWallet()
   const [roomName, setRoomName] = useState("")
   const [roomId, setRoomId] = useState("")
+  const [betAmount, setBetAmount] = useState("")
+  const [joinBetAmount, setJoinBetAmount] = useState("")
   const [activeTab, setActiveTab] = useState<"create" | "join">("create")
   const [loading, setLoading] = useState(false)
   const [showWalletPopup, setShowWalletPopup] = useState(false)
   const [availableRooms, setAvailableRooms] = useState<GameRoom[]>([])
+  const [userCoins, setUserCoins] = useState<any[]>([])
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -38,25 +42,86 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    const fetchUserCoins = async () => {
+      if (connected && account?.address) {
+        const result = await getUserCoins(account.address)
+        if (result.success) {
+          setUserCoins(result.coins || [])
+        }
+      }
+    }
+
+    fetchUserCoins()
+  }, [connected, account?.address])
+
   const handleCreateRoom = async () => {
-    if (!account?.address || !roomName.trim()) {
-      console.log("[v0] Cannot create room: missing account or room name")
+    if (!account?.address || !roomName.trim() || !betAmount.trim()) {
+      console.log("[v0] Cannot create room: missing account, room name, or bet amount")
       return
     }
 
-    console.log("[v0] Creating room with name:", roomName)
+    console.log("[v0] Creating room with name:", roomName, "bet amount:", betAmount)
     setLoading(true)
 
     try {
       const playerName = `${account.address.slice(0, 6)}...${account.address.slice(-4)}`
-      const result = await createRoom(roomName.trim(), account.address, playerName)
-
-      if (result.success && result.room) {
-        console.log("[v0] Room created successfully:", result.room)
-        onRoomCreated(result.room)
-      } else {
-        console.error("[v0] Failed to create room:", result.error)
+      
+      // First create the room without treasury ID
+      const roomResult = await createRoom(roomName.trim(), account.address, playerName, betAmount)
+      
+      if (!roomResult.success || !roomResult.room) {
+        console.error("[v0] Failed to create room:", roomResult.error)
+        setLoading(false)
+        return
       }
+
+      // Find a suitable coin for the bet
+      if (userCoins.length === 0) {
+        console.error("[v0] No SUI coins available")
+        setLoading(false)
+        return
+      }
+
+      // Get the largest coin to use for betting
+      const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+      const coinToUse = sortedCoins[0]
+      const betAmountMist = suiToMist(betAmount)
+
+      if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
+        console.error("[v0] Insufficient balance for bet")
+        setLoading(false)
+        return
+      }
+
+      // Call the SUI contract to create the bet
+      const contractResult = await criarAposta(
+        account.address,
+        coinToUse.coinObjectId,
+        betAmountMist,
+        signAndExecuteTransaction
+      )
+
+      if (!contractResult.success) {
+        console.error("[v0] Failed to create bet on contract:", contractResult.error)
+        setLoading(false)
+        return
+      }
+
+      // Update the room with the treasury ID
+      if (contractResult.treasuryId) {
+        const updateResult = await updateRoomTreasury(roomResult.room.id, contractResult.treasuryId)
+        if (updateResult.success && updateResult.room) {
+          console.log("[v0] Room created and treasury linked successfully:", updateResult.room)
+          onRoomCreated(updateResult.room)
+        } else {
+          console.error("[v0] Failed to update room with treasury:", updateResult.error)
+        }
+      } else {
+        console.log("[v0] Room created without treasury ID - using room without contract")
+        onRoomCreated(roomResult.room)
+      }
+
     } catch (error) {
       console.error("[v0] Error creating room:", error)
     } finally {
@@ -65,16 +130,69 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
   }
 
   const handleJoinRoom = async () => {
-    if (!account?.address || !roomId.trim()) {
-      console.log("[v0] Cannot join room: missing account or room ID")
+    if (!account?.address || !roomId.trim() || !joinBetAmount.trim()) {
+      console.log("[v0] Cannot join room: missing account, room ID, or bet amount")
       return
     }
 
-    console.log("[v0] Joining room with ID:", roomId)
+    console.log("[v0] Joining room with ID:", roomId, "bet amount:", joinBetAmount)
     setLoading(true)
 
     try {
       const playerName = `${account.address.slice(0, 6)}...${account.address.slice(-4)}`
+      
+      // Get the room first to check bet amount and treasury ID
+      const roomToJoin = availableRooms.find(room => room.id.toUpperCase() === roomId.trim().toUpperCase())
+      
+      if (!roomToJoin) {
+        console.error("[v0] Room not found")
+        setLoading(false)
+        return
+      }
+
+      // Check if bet amounts match
+      if (roomToJoin.betAmount && joinBetAmount !== roomToJoin.betAmount) {
+        console.error("[v0] Bet amount must match room bet amount:", roomToJoin.betAmount)
+        setLoading(false)
+        return
+      }
+
+      // If room has a treasury (contract betting), join the bet first
+      if (roomToJoin.treasuryId && roomToJoin.betAmount) {
+        // Find a suitable coin for the bet
+        if (userCoins.length === 0) {
+          console.error("[v0] No SUI coins available")
+          setLoading(false)
+          return
+        }
+
+        const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+        const coinToUse = sortedCoins[0]
+        const betAmountMist = suiToMist(joinBetAmount)
+
+        if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
+          console.error("[v0] Insufficient balance for bet")
+          setLoading(false)
+          return
+        }
+
+        // Call the SUI contract to join the bet
+        const contractResult = await entrarAposta(
+          account.address,
+          roomToJoin.treasuryId,
+          coinToUse.coinObjectId,
+          betAmountMist,
+          signAndExecuteTransaction
+        )
+
+        if (!contractResult.success) {
+          console.error("[v0] Failed to join bet on contract:", contractResult.error)
+          setLoading(false)
+          return
+        }
+      }
+
+      // Join the room
       const result = await joinRoom(roomId.trim().toUpperCase(), account.address, playerName)
 
       if (result.success && result.room) {
@@ -101,6 +219,43 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
 
     try {
       const playerName = `${account.address.slice(0, 6)}...${account.address.slice(-4)}`
+      
+      // If room has a treasury (contract betting), join the bet first
+      if (room.treasuryId && room.betAmount) {
+        // Find a suitable coin for the bet
+        if (userCoins.length === 0) {
+          console.error("[v0] No SUI coins available")
+          setLoading(false)
+          return
+        }
+
+        const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
+        const coinToUse = sortedCoins[0]
+        const betAmountMist = suiToMist(room.betAmount)
+
+        if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
+          console.error("[v0] Insufficient balance for bet")
+          setLoading(false)
+          return
+        }
+
+        // Call the SUI contract to join the bet
+        const contractResult = await entrarAposta(
+          account.address,
+          room.treasuryId,
+          coinToUse.coinObjectId,
+          betAmountMist,
+          signAndExecuteTransaction
+        )
+
+        if (!contractResult.success) {
+          console.error("[v0] Failed to join bet on contract:", contractResult.error)
+          setLoading(false)
+          return
+        }
+      }
+
+      // Join the room
       const result = await joinRoom(room.id, account.address, playerName)
 
       if (result.success && result.room) {
@@ -162,9 +317,31 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
               />
             </div>
 
+            <div className="space-y-3">
+              <label htmlFor="betAmount" className="text-sm font-medium text-card-foreground flex items-center gap-2">
+                <Coins className="h-4 w-4" />
+                Bet Amount (SUI)
+              </label>
+              <Input
+                id="betAmount"
+                type="number"
+                placeholder="0.1"
+                value={betAmount}
+                onChange={(e) => setBetAmount(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && connected && handleCreateRoom()}
+                disabled={!connected}
+                className="border-primary/20 focus:border-primary/50 bg-background/50"
+                min="0"
+                step="0.1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the amount of SUI to bet for this game
+              </p>
+            </div>
+
             <Button
               onClick={handleCreateRoom}
-              disabled={loading || !roomName.trim() || !connected}
+              disabled={loading || !roomName.trim() || !betAmount.trim() || !connected}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 gap-2"
             >
               {loading ? (
@@ -211,9 +388,31 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
               />
             </div>
 
+            <div className="space-y-3">
+              <label htmlFor="joinBetAmount" className="text-sm font-medium text-card-foreground flex items-center gap-2">
+                <Coins className="h-4 w-4" />
+                Bet Amount (SUI)
+              </label>
+              <Input
+                id="joinBetAmount"
+                type="number"
+                placeholder="0.1"
+                value={joinBetAmount}
+                onChange={(e) => setJoinBetAmount(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && connected && handleJoinRoom()}
+                disabled={!connected}
+                className="border-primary/20 focus:border-primary/50 bg-background/50"
+                min="0"
+                step="0.1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Must match the room's bet amount
+              </p>
+            </div>
+
             <Button
               onClick={handleJoinRoom}
-              disabled={loading || !roomId.trim() || !connected}
+              disabled={loading || !roomId.trim() || !joinBetAmount.trim() || !connected}
               className="w-full bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-300 gap-2"
             >
               {loading ? (
@@ -262,10 +461,23 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
                     <div>
                       <h3 className="font-medium text-foreground">{room.name}</h3>
                       <p className="text-sm text-muted-foreground">Room ID: {room.id}</p>
+                      {room.betAmount && (
+                        <p className="text-sm text-accent font-medium flex items-center gap-1">
+                          <Coins className="h-3 w-3" />
+                          Bet: {room.betAmount} SUI
+                        </p>
+                      )}
                     </div>
-                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-                      {room.players.length}/2 players
-                    </Badge>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                        {room.players.length}/2 players
+                      </Badge>
+                      {room.treasuryId && (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                          Contract Betting
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <Button
                     onClick={() => handleJoinAvailableRoom(room)}

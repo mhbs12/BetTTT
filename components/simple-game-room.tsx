@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { makeMove, getRoomState, leaveRoom, checkGameForfeit } from "@/app/actions/game-actions"
+import { finishGame } from "@/lib/sui-contract"
 import type { GameRoom } from "@/lib/game-store"
 
 interface SimpleGameRoomProps {
@@ -14,13 +15,14 @@ interface SimpleGameRoomProps {
 }
 
 export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps) {
-  const { account } = useWallet()
+  const { account, signAndExecuteTransaction } = useWallet()
   const [room, setRoom] = useState<GameRoom>(initialRoom)
   const [loading, setLoading] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "reconnecting" | "error">("connected")
   const [retryCount, setRetryCount] = useState(0)
   const [lastMoveTime, setLastMoveTime] = useState<number>(0)
   const [isForfeit, setIsForfeit] = useState(false)
+  const [contractFinished, setContractFinished] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const maxRetries = 5
 
@@ -107,6 +109,31 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
       }
     }
   }, [room.id, room.status, retryCount, onLeaveRoom])
+
+  // Handle contract finish when game ends with a winner
+  useEffect(() => {
+    const handleContractFinish = async () => {
+      // Only call if game is finished, has a winner, has treasury ID, and hasn't been called yet
+      if (room.status === "finished" && room.winner && room.treasuryId && !contractFinished && signAndExecuteTransaction) {
+        console.log("[v0] Game finished with winner, calling finish_game contract")
+        setContractFinished(true)
+        
+        try {
+          const result = await finishGame(room.winner, room.treasuryId, signAndExecuteTransaction)
+          
+          if (result.success) {
+            console.log("[v0] Contract finish_game called successfully:", result.digest)
+          } else {
+            console.error("[v0] Failed to call finish_game contract:", result.error)
+          }
+        } catch (error) {
+          console.error("[v0] Error calling finish_game contract:", error)
+        }
+      }
+    }
+
+    handleContractFinish()
+  }, [room.status, room.winner, room.treasuryId, contractFinished, signAndExecuteTransaction])
 
   const handleMove = async (position: number) => {
     if (!account?.address || loading) return

@@ -2,8 +2,8 @@
 
 import { gameStore } from "@/lib/game-store"
 
-export async function createRoom(roomName: string, playerAddress: string, playerName: string) {
-  console.log("[v0] Server: Creating room", { roomName, playerAddress, playerName })
+export async function createRoom(roomName: string, playerAddress: string, playerName: string, betAmount?: string, treasuryId?: string) {
+  console.log("[v0] Server: Creating room", { roomName, playerAddress, playerName, betAmount, treasuryId })
 
   try {
     if (!roomName.trim() || !playerAddress || !playerName) {
@@ -14,7 +14,7 @@ export async function createRoom(roomName: string, playerAddress: string, player
       return { success: false, error: "Room name too long (max 50 characters)" }
     }
 
-    const roomId = gameStore.createRoom(roomName.trim(), playerAddress, playerName)
+    const roomId = gameStore.createRoom(roomName.trim(), playerAddress, playerName, betAmount, treasuryId)
     const room = gameStore.getRoom(roomId)
 
     console.log("[v0] Server: Room created successfully", { roomId, room })
@@ -164,5 +164,27 @@ export async function checkGameForfeit(roomId: string) {
   } catch (error) {
     console.error("[v0] Server: Error checking forfeit status", error)
     return { success: false, error: "Failed to check forfeit status" }
+  }
+}
+
+export async function updateRoomTreasury(roomId: string, treasuryId: string) {
+  console.log("[v0] Server: Updating room treasury", { roomId, treasuryId })
+
+  try {
+    if (!roomId.trim() || !treasuryId.trim()) {
+      return { success: false, error: "Missing required fields" }
+    }
+
+    const room = gameStore.updateTreasuryId(roomId.trim(), treasuryId.trim())
+
+    if (!room) {
+      return { success: false, error: "Room not found" }
+    }
+
+    console.log("[v0] Server: Room treasury updated successfully", { roomId, treasuryId })
+    return { success: true, room }
+  } catch (error) {
+    console.error("[v0] Server: Error updating room treasury", error)
+    return { success: false, error: "Failed to update room treasury. Please try again." }
   }
 }
