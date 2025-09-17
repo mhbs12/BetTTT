@@ -1,5 +1,5 @@
 import { Transaction } from "@mysten/sui/transactions"
-import { suiClient, PACKAGE_ID, MODULE_NAME } from "@/lib/sui-client"
+import { suiClient, PACKAGE_ID, MODULE_NAME, NETWORK } from "@/lib/sui-client"
 
 /**
  * Creates a bet (criar_aposta) by calling the SUI Move contract
