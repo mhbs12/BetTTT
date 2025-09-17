@@ -30,6 +30,10 @@ export async function criarAposta(
 
     const tx = new Transaction()
     
+    // Set the sender address for the transaction
+    tx.setSender(senderAddress)
+    console.log("[v0] criarAposta: Transaction sender set to:", senderAddress)
+    
     // Set explicit gas coin if provided
     if (gasCoinId && gasCoinId !== coinObjectId) {
       console.log("[v0] criarAposta: Using explicit gas coin:", gasCoinId)
@@ -125,6 +129,10 @@ export async function entrarAposta(
 
     const tx = new Transaction()
     
+    // Set the sender address for the transaction
+    tx.setSender(senderAddress)
+    console.log("[v0] entrarAposta: Transaction sender set to:", senderAddress)
+    
     // Set explicit gas coin if provided
     if (gasCoinId && gasCoinId !== coinObjectId) {
       console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoinId)
@@ -169,12 +177,14 @@ export async function entrarAposta(
 
 /**
  * Finishes the game (finish_game) by calling the SUI Move contract
+ * @param senderAddress - Address of the player finishing the game
  * @param winnerAddress - Address of the winner
  * @param treasuryId - Object ID of the Treasury to distribute
  * @param signAndExecuteTransaction - Function from wallet to sign and execute
  * @returns Promise with transaction result
  */
 export async function finishGame(
+  senderAddress: string,
   winnerAddress: string,
   treasuryId: string,
   signAndExecuteTransaction: any
@@ -186,10 +196,15 @@ export async function finishGame(
     }
 
     console.log("[v0] finishGame: Finishing game with package:", PACKAGE_ID)
+    console.log("[v0] finishGame: Sender address:", senderAddress)
     console.log("[v0] finishGame: Winner address:", winnerAddress)
     console.log("[v0] finishGame: Treasury ID:", treasuryId)
 
     const tx = new Transaction()
+    
+    // Set the sender address for the transaction
+    tx.setSender(senderAddress)
+    console.log("[v0] finishGame: Transaction sender set to:", senderAddress)
     
     console.log("[v0] finishGame: SUI SDK will handle gas payment automatically from available coins")
     
