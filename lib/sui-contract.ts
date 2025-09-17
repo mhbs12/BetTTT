@@ -51,14 +51,23 @@ export async function criarAposta(
 
     console.log("[v0] criarAposta: Transaction prepared, executing...")
 
-    // Execute the transaction with options to ensure gas payment works
-    const result = await signAndExecuteTransaction({
-      transaction: tx,
-      chain: `sui:${NETWORK}`,
-      options: {
-        showEffects: true,
-        showBalanceChanges: true,
-      }
+    // Execute the transaction using the modern dapp-kit pattern
+    const result = await new Promise((resolve, reject) => {
+      signAndExecuteTransaction(
+        {
+          transaction: tx,
+        },
+        {
+          onSuccess: (result: any) => {
+            console.log(`[v0] criarAposta transaction successful with digest: ${result.digest}`)
+            resolve(result)
+          },
+          onError: (error: any) => {
+            console.error(`[v0] criarAposta transaction failed:`, error)
+            reject(error)
+          },
+        }
+      )
     })
 
     console.log("[v0] criarAposta: Transaction result:", result)
@@ -150,14 +159,23 @@ export async function entrarAposta(
 
     console.log("[v0] entrarAposta: Transaction prepared, executing...")
 
-    // Execute the transaction with options to ensure gas payment works
-    const result = await signAndExecuteTransaction({
-      transaction: tx,
-      chain: `sui:${NETWORK}`,
-      options: {
-        showEffects: true,
-        showBalanceChanges: true,
-      }
+    // Execute the transaction using the modern dapp-kit pattern
+    const result = await new Promise((resolve, reject) => {
+      signAndExecuteTransaction(
+        {
+          transaction: tx,
+        },
+        {
+          onSuccess: (result: any) => {
+            console.log(`[v0] entrarAposta transaction successful with digest: ${result.digest}`)
+            resolve(result)
+          },
+          onError: (error: any) => {
+            console.error(`[v0] entrarAposta transaction failed:`, error)
+            reject(error)
+          },
+        }
+      )
     })
 
     console.log("[v0] entrarAposta: Transaction result:", result)
@@ -216,14 +234,23 @@ export async function finishGame(
 
     console.log("[v0] finishGame: Transaction prepared, executing...")
 
-    // Execute the transaction with options to ensure gas payment works
-    const result = await signAndExecuteTransaction({
-      transaction: tx,
-      chain: `sui:${NETWORK}`,
-      options: {
-        showEffects: true,
-        showBalanceChanges: true,
-      }
+    // Execute the transaction using the modern dapp-kit pattern
+    const result = await new Promise((resolve, reject) => {
+      signAndExecuteTransaction(
+        {
+          transaction: tx,
+        },
+        {
+          onSuccess: (result: any) => {
+            console.log(`[v0] finishGame transaction successful with digest: ${result.digest}`)
+            resolve(result)
+          },
+          onError: (error: any) => {
+            console.error(`[v0] finishGame transaction failed:`, error)
+            reject(error)
+          },
+        }
+      )
     })
 
     console.log("finish_game transaction result:", result)
