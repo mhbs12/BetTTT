@@ -119,7 +119,7 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
         setContractFinished(true)
         
         try {
-          const result = await finishGame(room.winner, room.treasuryId, signAndExecuteTransaction)
+          const result = await finishGame(account.address, room.winner, room.treasuryId, signAndExecuteTransaction)
           
           if (result.success) {
             console.log("[v0] Contract finish_game called successfully:", result.digest)
