@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { WalletConnectPopup } from "@/components/wallet-connect-popup"
 import { createRoom, joinRoom, getAvailableRooms, updateRoomTreasury } from "@/app/actions/game-actions"
-import { criarAposta, entrarAposta, getUserCoins, suiToMist, selectCoinsForBetting } from "@/lib/sui-contract"
+import { criarAposta, entrarAposta, getUserCoins, suiToMist, selectCoinsForBettingWithGasStrategy } from "@/lib/sui-contract"
 import { PACKAGE_ID, NETWORK } from "@/lib/sui-client"
 import { Plus, Hash, Sparkles, GamepadIcon, Users, Coins, AlertTriangle, CheckCircle } from "lucide-react"
 import type { GameRoom } from "@/lib/game-store"
@@ -105,9 +105,9 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         }
       }
 
-      // Use improved coin selection for betting
+      // Use improved coin selection for betting with explicit gas strategy
       const betAmountMist = suiToMist(betAmount)
-      const coinSelection = selectCoinsForBetting(userCoins, betAmountMist)
+      const coinSelection = selectCoinsForBettingWithGasStrategy(userCoins, betAmountMist)
       
       if (!coinSelection.isValid) {
         setError(coinSelection.error || "Unable to select appropriate coins for betting")
@@ -116,17 +116,27 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       }
 
       console.log("[v0] Selected optimal coin for betting:", coinSelection.bettingCoin.coinObjectId)
-      console.log("[v0] Gas payment will be handled automatically by SUI SDK")
+      console.log("[v0] Gas strategy:", coinSelection.strategy)
+      if (coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
+        console.log("[v0] Using separate gas coin:", coinSelection.gasCoin.coinObjectId)
+      } else {
+        console.log("[v0] Gas payment will be handled from the same coin")
+      }
 
       console.log("[v0] Creating SUI contract bet first...")
       setSuccess("Creating blockchain bet, please sign the transaction in your wallet...")
 
       // Call the SUI contract to create the bet FIRST
+      const gasCoinId = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
+        ? coinSelection.gasCoin.coinObjectId 
+        : undefined
+      
       const contractResult = await criarAposta(
         account.address,
         coinSelection.bettingCoin.coinObjectId,
         betAmountMist,
-        signAndExecuteTransaction
+        signAndExecuteTransaction,
+        gasCoinId
       )
 
       if (!contractResult.success || !contractResult.treasuryId) {
@@ -215,9 +225,9 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
             }
           }
 
-          // Use improved coin selection for betting
+          // Use improved coin selection for betting with explicit gas strategy
           const betAmountMist = suiToMist(joinBetAmount)
-          const coinSelection = selectCoinsForBetting(userCoins, betAmountMist)
+          const coinSelection = selectCoinsForBettingWithGasStrategy(userCoins, betAmountMist)
           
           if (!coinSelection.isValid) {
             setError(coinSelection.error || "Unable to select appropriate coins for betting")
@@ -226,15 +236,25 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           }
 
           console.log("[v0] Selected optimal coin for joining bet:", coinSelection.bettingCoin.coinObjectId)
-          console.log("[v0] Gas payment will be handled automatically by SUI SDK")
+          console.log("[v0] Gas strategy:", coinSelection.strategy)
+          if (coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
+            console.log("[v0] Using separate gas coin:", coinSelection.gasCoin.coinObjectId)
+          } else {
+            console.log("[v0] Gas payment will be handled from the same coin")
+          }
 
           // Call the SUI contract to join the bet
+          const gasCoinId = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
+            ? coinSelection.gasCoin.coinObjectId 
+            : undefined
+          
           const contractResult = await entrarAposta(
             account.address,
             roomToJoin.treasuryId,
             coinSelection.bettingCoin.coinObjectId,
             betAmountMist,
-            signAndExecuteTransaction
+            signAndExecuteTransaction,
+            gasCoinId
           )
 
           if (!contractResult.success) {
@@ -304,9 +324,9 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
             }
           }
 
-          // Use improved coin selection for betting
+          // Use improved coin selection for betting with explicit gas strategy
           const betAmountMist = suiToMist(room.betAmount)
-          const coinSelection = selectCoinsForBetting(userCoins, betAmountMist)
+          const coinSelection = selectCoinsForBettingWithGasStrategy(userCoins, betAmountMist)
           
           if (!coinSelection.isValid) {
             setError(coinSelection.error || "Unable to select appropriate coins for betting")
@@ -315,15 +335,25 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           }
 
           console.log("[v0] Selected optimal coin for joining available room:", coinSelection.bettingCoin.coinObjectId)
-          console.log("[v0] Gas payment will be handled automatically by SUI SDK")
+          console.log("[v0] Gas strategy:", coinSelection.strategy)
+          if (coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
+            console.log("[v0] Using separate gas coin:", coinSelection.gasCoin.coinObjectId)
+          } else {
+            console.log("[v0] Gas payment will be handled from the same coin")
+          }
 
           // Call the SUI contract to join the bet
+          const gasCoinId = coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId 
+            ? coinSelection.gasCoin.coinObjectId 
+            : undefined
+          
           const contractResult = await entrarAposta(
             account.address,
             room.treasuryId,
             coinSelection.bettingCoin.coinObjectId,
             betAmountMist,
-            signAndExecuteTransaction
+            signAndExecuteTransaction,
+            gasCoinId
           )
 
           if (!contractResult.success) {

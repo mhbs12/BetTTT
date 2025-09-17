@@ -7,13 +7,15 @@ import { suiClient, PACKAGE_ID, MODULE_NAME, NETWORK } from "@/lib/sui-client"
  * @param coinObjectId - Object ID of the SUI coin to use for betting
  * @param amount - Amount to bet in MIST (1 SUI = 1,000,000,000 MIST)
  * @param signAndExecuteTransaction - Function from wallet to sign and execute
+ * @param gasCoinId - Optional explicit gas coin object ID for gas payment
  * @returns Promise with transaction result and treasury object ID
  */
 export async function criarAposta(
   senderAddress: string,
   coinObjectId: string,
   amount: string,
-  signAndExecuteTransaction: any
+  signAndExecuteTransaction: any,
+  gasCoinId?: string
 ) {
   try {
     // Check if package ID is properly configured
@@ -28,7 +30,13 @@ export async function criarAposta(
 
     const tx = new Transaction()
     
-    console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
+    // Set explicit gas coin if provided
+    if (gasCoinId && gasCoinId !== coinObjectId) {
+      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoinId)
+      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    } else {
+      console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
+    }
     
     // Call the criar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
@@ -92,6 +100,7 @@ export async function criarAposta(
  * @param coinObjectId - Object ID of the SUI coin to use for betting
  * @param amount - Amount to bet in MIST
  * @param signAndExecuteTransaction - Function from wallet to sign and execute
+ * @param gasCoinId - Optional explicit gas coin object ID for gas payment
  * @returns Promise with transaction result
  */
 export async function entrarAposta(
@@ -99,7 +108,8 @@ export async function entrarAposta(
   treasuryId: string,
   coinObjectId: string,
   amount: string,
-  signAndExecuteTransaction: any
+  signAndExecuteTransaction: any,
+  gasCoinId?: string
 ) {
   try {
     // Check if package ID is properly configured
@@ -115,7 +125,13 @@ export async function entrarAposta(
 
     const tx = new Transaction()
     
-    console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
+    // Set explicit gas coin if provided
+    if (gasCoinId && gasCoinId !== coinObjectId) {
+      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoinId)
+      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    } else {
+      console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
+    }
     
     // Call the entrar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
