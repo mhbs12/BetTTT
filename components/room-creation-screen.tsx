@@ -111,7 +111,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       const betAmountMist = suiToMist(betAmount)
 
       if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
-        setError(`Insufficient SUI balance. Need ${betAmount} SUI for this bet.`)
+        setError(`Insufficient SUI balance. Need ${betAmount} SUI for this bet plus additional SUI for gas fees.`)
         setLoading(false)
         return
       }
@@ -218,7 +218,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           const betAmountMist = suiToMist(joinBetAmount)
 
           if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
-            setError("Insufficient SUI balance for this bet.")
+            setError("Insufficient SUI balance for this bet plus gas fees.")
             setLoading(false)
             return
           }
@@ -304,7 +304,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           const betAmountMist = suiToMist(room.betAmount)
 
           if (parseInt(coinToUse.balance) < parseInt(betAmountMist)) {
-            setError(`Insufficient SUI balance. Need ${room.betAmount} SUI for this bet.`)
+            setError(`Insufficient SUI balance. Need ${room.betAmount} SUI for this bet plus additional SUI for gas fees.`)
             setLoading(false)
             return
           }
