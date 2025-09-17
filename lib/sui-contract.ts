@@ -26,35 +26,9 @@ export async function criarAposta(
     console.log("[v0] criarAposta: Coin object ID:", coinObjectId)
     console.log("[v0] criarAposta: Note: Passing original coin, Move function handles splitting")
 
-    // Get user's coins to set up gas payment properly
-    const userCoinsResult = await getUserCoins(senderAddress)
-    if (!userCoinsResult.success || !userCoinsResult.coins || userCoinsResult.coins.length === 0) {
-      throw new Error("No SUI coins available for gas payment")
-    }
-
-    // Use improved coin selection strategy
-    const coinSelection = selectCoinsForBetting(userCoinsResult.coins, amount)
-    if (!coinSelection.isValid) {
-      throw new Error(coinSelection.error || "Unable to select appropriate coins for betting")
-    }
-
-    // Verify the provided coinObjectId matches our selected betting coin
-    if (coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
-      console.log("[v0] criarAposta: Provided coin doesn't match optimal selection, using provided coin anyway")
-      // Fallback to original logic but with limited gas coins
-      const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
-      const gasCoins = availableCoins.length > 0 ? availableCoins.slice(0, 2) : userCoinsResult.coins.slice(0, 2)
-      coinSelection.gasCoins = gasCoins
-    }
-
     const tx = new Transaction()
     
-    console.log("[v0] criarAposta: Setting gas payment with", coinSelection.gasCoins.length, "coins (limited for safety)")
-    tx.setGasPayment(coinSelection.gasCoins.map(coin => ({
-      objectId: coin.coinObjectId,
-      version: coin.version,
-      digest: coin.digest
-    })))
+    console.log("[v0] criarAposta: Letting SUI SDK automatically handle gas payment")
     
     // Call the criar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
@@ -135,35 +109,9 @@ export async function entrarAposta(
     console.log("[v0] entrarAposta: Coin object ID:", coinObjectId)
     console.log("[v0] entrarAposta: Note: Passing original coin, Move function handles splitting")
 
-    // Get user's coins to set up gas payment properly
-    const userCoinsResult = await getUserCoins(senderAddress)
-    if (!userCoinsResult.success || !userCoinsResult.coins || userCoinsResult.coins.length === 0) {
-      throw new Error("No SUI coins available for gas payment")
-    }
-
-    // Use improved coin selection strategy
-    const coinSelection = selectCoinsForBetting(userCoinsResult.coins, amount)
-    if (!coinSelection.isValid) {
-      throw new Error(coinSelection.error || "Unable to select appropriate coins for betting")
-    }
-
-    // Verify the provided coinObjectId matches our selected betting coin
-    if (coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
-      console.log("[v0] entrarAposta: Provided coin doesn't match optimal selection, using provided coin anyway")
-      // Fallback to original logic but with limited gas coins
-      const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
-      const gasCoins = availableCoins.length > 0 ? availableCoins.slice(0, 2) : userCoinsResult.coins.slice(0, 2)
-      coinSelection.gasCoins = gasCoins
-    }
-
     const tx = new Transaction()
     
-    console.log("[v0] entrarAposta: Setting gas payment with", coinSelection.gasCoins.length, "coins (limited for safety)")
-    tx.setGasPayment(coinSelection.gasCoins.map(coin => ({
-      objectId: coin.coinObjectId,
-      version: coin.version,
-      digest: coin.digest
-    })))
+    console.log("[v0] entrarAposta: Letting SUI SDK automatically handle gas payment")
     
     // Call the entrar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
@@ -217,24 +165,9 @@ export async function finishGame(
     console.log("[v0] finishGame: Winner address:", winnerAddress)
     console.log("[v0] finishGame: Treasury ID:", treasuryId)
 
-    // Get user's coins to set up gas payment properly
-    const userCoinsResult = await getUserCoins(winnerAddress)
-    if (!userCoinsResult.success || !userCoinsResult.coins || userCoinsResult.coins.length === 0) {
-      throw new Error("No SUI coins available for gas payment")
-    }
-
     const tx = new Transaction()
     
-    // Set gas payment explicitly to avoid "No valid gas coins found" error
-    // Use a limited number of coins for gas payment to prevent draining wallet
-    const gasCoins = userCoinsResult.coins.slice(0, 2) // Limit to 2 coins for safety
-    
-    console.log("[v0] finishGame: Setting gas payment with", gasCoins.length, "coins (limited for safety)")
-    tx.setGasPayment(gasCoins.map(coin => ({
-      objectId: coin.coinObjectId,
-      version: coin.version,
-      digest: coin.digest
-    })))
+    console.log("[v0] finishGame: Letting SUI SDK automatically handle gas payment")
     
     // Call the finish_game function
     tx.moveCall({
@@ -301,51 +234,28 @@ export async function getUserCoins(ownerAddress: string) {
 }
 
 /**
- * Selects the best coin for betting and gas payment strategy
+ * Selects a suitable coin for betting (gas will be handled automatically by SUI SDK)
  * @param coins - Available coins
  * @param betAmountMist - Required bet amount in MIST
- * @returns Object with betting coin and gas coins
+ * @returns Object with betting coin validation
  */
 export function selectCoinsForBetting(coins: any[], betAmountMist: string) {
   const betAmount = parseInt(betAmountMist)
-  const estimatedGasFee = 10_000_000 // ~0.01 SUI for gas estimation
   
-  // Find a coin that can cover both bet amount and gas
-  const suitableCoin = coins.find(coin => parseInt(coin.balance) >= betAmount + estimatedGasFee)
-  
-  if (suitableCoin) {
-    // Use the same coin for betting and gas if it's large enough
-    return {
-      bettingCoin: suitableCoin,
-      gasCoins: [suitableCoin],
-      isValid: true
-    }
-  }
-  
-  // If no single coin can cover both, find a coin for betting and separate gas coins
+  // Find any coin that can cover the bet amount
+  // SUI SDK will automatically handle gas payment from available coins
   const bettingCoin = coins.find(coin => parseInt(coin.balance) >= betAmount)
+  
   if (!bettingCoin) {
     return {
       bettingCoin: null,
-      gasCoins: [],
       isValid: false,
       error: "No coin with sufficient balance for betting amount"
     }
   }
   
-  // Find coins for gas payment (excluding the betting coin)
-  const gasCoins = coins
-    .filter(coin => coin.coinObjectId !== bettingCoin.coinObjectId)
-    .slice(0, 2) // Limit to 2 coins for gas
-  
-  if (gasCoins.length === 0) {
-    // Fallback: use the betting coin for gas as well, but limit it
-    gasCoins.push(bettingCoin)
-  }
-  
   return {
     bettingCoin,
-    gasCoins,
     isValid: true
   }
 }
