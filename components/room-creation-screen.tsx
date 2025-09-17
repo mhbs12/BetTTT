@@ -48,10 +48,20 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
   useEffect(() => {
     const fetchUserCoins = async () => {
       if (connected && account?.address) {
+        console.log("[v0] Fetching user coins for address:", account.address)
         const result = await getUserCoins(account.address)
+        console.log("[v0] getUserCoins result:", result)
+        
         if (result.success) {
           setUserCoins(result.coins || [])
+          console.log("[v0] Successfully fetched", result.coins?.length || 0, "coins")
+        } else {
+          console.error("[v0] Failed to get user coins:", result.error)
+          setUserCoins([])
+          // Don't set error here as it might be a temporary network issue
         }
+      } else {
+        setUserCoins([])
       }
     }
 
@@ -76,9 +86,22 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       let treasuryId = null
       
       if (userCoins.length === 0) {
-        setError("No SUI coins available for betting. Please fund your wallet.")
-        setLoading(false)
-        return
+        console.log("[v0] No coins found. Attempting to refresh coin data...")
+        // Try to refresh coin data in case it's a timing issue
+        const coinRefreshResult = await getUserCoins(account.address)
+        console.log("[v0] Coin refresh result:", coinRefreshResult)
+        
+        if (coinRefreshResult.success && coinRefreshResult.coins && coinRefreshResult.coins.length > 0) {
+          setUserCoins(coinRefreshResult.coins)
+          console.log("[v0] Successfully refreshed", coinRefreshResult.coins.length, "coins")
+        } else {
+          const errorMsg = coinRefreshResult.success 
+            ? "No SUI coins available for betting. Please fund your wallet." 
+            : `Failed to check SUI balance: ${coinRefreshResult.error || "Unknown error"}`
+          setError(errorMsg)
+          setLoading(false)
+          return
+        }
       }
 
       // Get the largest coin to use for betting
@@ -171,9 +194,22 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         try {
           // Find a suitable coin for the bet
           if (userCoins.length === 0) {
-            setError("No SUI coins available for betting. Please fund your wallet.")
-            setLoading(false)
-            return
+            console.log("[v0] No coins found for join. Attempting to refresh coin data...")
+            // Try to refresh coin data in case it's a timing issue
+            const coinRefreshResult = await getUserCoins(account.address)
+            console.log("[v0] Join coin refresh result:", coinRefreshResult)
+            
+            if (coinRefreshResult.success && coinRefreshResult.coins && coinRefreshResult.coins.length > 0) {
+              setUserCoins(coinRefreshResult.coins)
+              console.log("[v0] Successfully refreshed", coinRefreshResult.coins.length, "coins for join")
+            } else {
+              const errorMsg = coinRefreshResult.success 
+                ? "No SUI coins available for betting. Please fund your wallet." 
+                : `Failed to check SUI balance: ${coinRefreshResult.error || "Unknown error"}`
+              setError(errorMsg)
+              setLoading(false)
+              return
+            }
           }
 
           const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
@@ -244,9 +280,22 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         try {
           // Find a suitable coin for the bet
           if (userCoins.length === 0) {
-            setError("No SUI coins available for betting. Please fund your wallet.")
-            setLoading(false)
-            return
+            console.log("[v0] No coins found for join room. Attempting to refresh coin data...")
+            // Try to refresh coin data in case it's a timing issue
+            const coinRefreshResult = await getUserCoins(account.address)
+            console.log("[v0] Join room coin refresh result:", coinRefreshResult)
+            
+            if (coinRefreshResult.success && coinRefreshResult.coins && coinRefreshResult.coins.length > 0) {
+              setUserCoins(coinRefreshResult.coins)
+              console.log("[v0] Successfully refreshed", coinRefreshResult.coins.length, "coins for join room")
+            } else {
+              const errorMsg = coinRefreshResult.success 
+                ? "No SUI coins available for betting. Please fund your wallet." 
+                : `Failed to check SUI balance: ${coinRefreshResult.error || "Unknown error"}`
+              setError(errorMsg)
+              setLoading(false)
+              return
+            }
           }
 
           const sortedCoins = userCoins.sort((a, b) => parseInt(b.balance) - parseInt(a.balance))
