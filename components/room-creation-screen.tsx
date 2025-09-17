@@ -116,7 +116,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       }
 
       console.log("[v0] Selected optimal coin for betting:", coinSelection.bettingCoin.coinObjectId)
-      console.log("[v0] Selected coins for gas:", coinSelection.gasCoins.length)
+      console.log("[v0] Gas payment will be handled automatically by SUI SDK")
 
       console.log("[v0] Creating SUI contract bet first...")
       setSuccess("Creating blockchain bet, please sign the transaction in your wallet...")
@@ -226,7 +226,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           }
 
           console.log("[v0] Selected optimal coin for joining bet:", coinSelection.bettingCoin.coinObjectId)
-          console.log("[v0] Selected coins for gas:", coinSelection.gasCoins.length)
+          console.log("[v0] Gas payment will be handled automatically by SUI SDK")
 
           // Call the SUI contract to join the bet
           const contractResult = await entrarAposta(
@@ -315,7 +315,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           }
 
           console.log("[v0] Selected optimal coin for joining available room:", coinSelection.bettingCoin.coinObjectId)
-          console.log("[v0] Selected coins for gas:", coinSelection.gasCoins.length)
+          console.log("[v0] Gas payment will be handled automatically by SUI SDK")
 
           // Call the SUI contract to join the bet
           const contractResult = await entrarAposta(
