@@ -26,7 +26,25 @@ export async function criarAposta(
     console.log("[v0] criarAposta: Coin object ID:", coinObjectId)
     console.log("[v0] criarAposta: Note: Passing original coin, Move function handles splitting")
 
+    // Get user's coins to set up gas payment properly
+    const userCoinsResult = await getUserCoins(senderAddress)
+    if (!userCoinsResult.success || !userCoinsResult.coins || userCoinsResult.coins.length === 0) {
+      throw new Error("No SUI coins available for gas payment")
+    }
+
     const tx = new Transaction()
+    
+    // Set gas payment explicitly to avoid "No valid gas coins found" error
+    // Use available coins for gas payment, prioritizing coins other than the betting coin
+    const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
+    const gasCoins = availableCoins.length > 0 ? availableCoins : userCoinsResult.coins
+    
+    console.log("[v0] criarAposta: Setting gas payment with", gasCoins.length, "available coins")
+    tx.setGasPayment(gasCoins.map(coin => ({
+      objectId: coin.coinObjectId,
+      version: coin.version,
+      digest: coin.digest
+    })))
     
     // Call the criar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
@@ -107,7 +125,25 @@ export async function entrarAposta(
     console.log("[v0] entrarAposta: Coin object ID:", coinObjectId)
     console.log("[v0] entrarAposta: Note: Passing original coin, Move function handles splitting")
 
+    // Get user's coins to set up gas payment properly
+    const userCoinsResult = await getUserCoins(senderAddress)
+    if (!userCoinsResult.success || !userCoinsResult.coins || userCoinsResult.coins.length === 0) {
+      throw new Error("No SUI coins available for gas payment")
+    }
+
     const tx = new Transaction()
+    
+    // Set gas payment explicitly to avoid "No valid gas coins found" error
+    // Use available coins for gas payment, prioritizing coins other than the betting coin
+    const availableCoins = userCoinsResult.coins.filter(coin => coin.coinObjectId !== coinObjectId)
+    const gasCoins = availableCoins.length > 0 ? availableCoins : userCoinsResult.coins
+    
+    console.log("[v0] entrarAposta: Setting gas payment with", gasCoins.length, "available coins")
+    tx.setGasPayment(gasCoins.map(coin => ({
+      objectId: coin.coinObjectId,
+      version: coin.version,
+      digest: coin.digest
+    })))
     
     // Call the entrar_aposta function with the original coin and amount
     // The Move function will handle the coin splitting internally
@@ -152,13 +188,38 @@ export async function finishGame(
   signAndExecuteTransaction: any
 ) {
   try {
+    // Check if package ID is properly configured
+    if (PACKAGE_ID === "0x0") {
+      throw new Error("Package ID not configured. Please set NEXT_PUBLIC_PACKAGE_ID environment variable.")
+    }
+
+    console.log("[v0] finishGame: Finishing game with package:", PACKAGE_ID)
+    console.log("[v0] finishGame: Winner address:", winnerAddress)
+    console.log("[v0] finishGame: Treasury ID:", treasuryId)
+
+    // Get user's coins to set up gas payment properly
+    const userCoinsResult = await getUserCoins(winnerAddress)
+    if (!userCoinsResult.success || !userCoinsResult.coins || userCoinsResult.coins.length === 0) {
+      throw new Error("No SUI coins available for gas payment")
+    }
+
     const tx = new Transaction()
+    
+    // Set gas payment explicitly to avoid "No valid gas coins found" error
+    console.log("[v0] finishGame: Setting gas payment with", userCoinsResult.coins.length, "available coins")
+    tx.setGasPayment(userCoinsResult.coins.map(coin => ({
+      objectId: coin.coinObjectId,
+      version: coin.version,
+      digest: coin.digest
+    })))
     
     // Call the finish_game function
     tx.moveCall({
       target: `${PACKAGE_ID}::${MODULE_NAME}::finish_game`,
       arguments: [tx.pure.address(winnerAddress), tx.object(treasuryId)],
     })
+
+    console.log("[v0] finishGame: Transaction prepared, executing...")
 
     // Execute the transaction
     const result = await signAndExecuteTransaction({
