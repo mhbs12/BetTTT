@@ -15,7 +15,7 @@ export async function criarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoin?: any
 ) {
   try {
     // Check if package ID is properly configured
@@ -34,11 +34,19 @@ export async function criarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] criarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    // Set explicit gas coin if provided and valid
+    if (gasCoin && gasCoin.coinObjectId !== coinObjectId && gasCoin.version && gasCoin.digest) {
+      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoin.coinObjectId)
+      console.log("[v0] criarAposta: Gas coin version:", gasCoin.version, "digest:", gasCoin.digest.substring(0, 10) + "...")
+      tx.setGasPayment([{ 
+        objectId: gasCoin.coinObjectId, 
+        version: gasCoin.version, 
+        digest: gasCoin.digest 
+      }])
     } else {
+      if (gasCoin && (!gasCoin.version || !gasCoin.digest)) {
+        console.warn("[v0] criarAposta: Gas coin provided but missing version/digest, falling back to automatic gas handling")
+      }
       console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
     
@@ -122,7 +130,7 @@ export async function entrarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoin?: any
 ) {
   try {
     // Check if package ID is properly configured
@@ -142,11 +150,19 @@ export async function entrarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] entrarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    // Set explicit gas coin if provided and valid
+    if (gasCoin && gasCoin.coinObjectId !== coinObjectId && gasCoin.version && gasCoin.digest) {
+      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoin.coinObjectId)
+      console.log("[v0] entrarAposta: Gas coin version:", gasCoin.version, "digest:", gasCoin.digest.substring(0, 10) + "...")
+      tx.setGasPayment([{ 
+        objectId: gasCoin.coinObjectId, 
+        version: gasCoin.version, 
+        digest: gasCoin.digest 
+      }])
     } else {
+      if (gasCoin && (!gasCoin.version || !gasCoin.digest)) {
+        console.warn("[v0] entrarAposta: Gas coin provided but missing version/digest, falling back to automatic gas handling")
+      }
       console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
     
@@ -317,6 +333,11 @@ export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist
   console.log("[v0] selectCoinsForBettingWithGasStrategy: Bet amount:", betAmount, "MIST")
   console.log("[v0] selectCoinsForBettingWithGasStrategy: Gas reserve:", gasReserveMist, "MIST")
   
+  // Debug: Log coin structures to help understand gas payment issues
+  coins.forEach((coin, index) => {
+    console.log(`[v0] Coin ${index}: ID=${coin.coinObjectId}, Balance=${coin.balance}, Version=${coin.version}, Digest=${coin.digest?.substring(0, 10)}...`)
+  })
+  
   // Strategy 1: Find a single coin that can handle both bet and gas
   const singleCoinSolution = coins.find(coin => parseInt(coin.balance) >= betAmount + gasReserveMist)
   
@@ -346,6 +367,19 @@ export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist
       strategy: "separate_coins",
       bettingCoin,
       gasCoin,
+      isValid: true,
+      gasReserve: gasReserveMist
+    }
+  }
+  
+  // Strategy 2.5: Use betting coin for gas if no separate gas coin available but we have a valid betting coin
+  if (bettingCoin) {
+    console.log("[v0] Strategy 2.5 - Using betting coin, SUI SDK will handle gas automatically")
+    console.log("[v0] Betting coin:", bettingCoin.coinObjectId)
+    return {
+      strategy: "betting_coin_only",
+      bettingCoin,
+      gasCoin: null,
       isValid: true,
       gasReserve: gasReserveMist
     }
