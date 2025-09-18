@@ -138,7 +138,8 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         coinSelection.bettingCoin.coinObjectId,
         betAmountMist,
         signAndExecuteTransaction,
-        gasCoinId
+        gasCoinId,
+        (message: string) => setSuccess(message)
       )
 
       if (!contractResult.success || !contractResult.treasuryId) {
