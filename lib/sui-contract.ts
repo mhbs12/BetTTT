@@ -246,6 +246,72 @@ export class SuiGameContract {
     }
   }
 
+  async mintOGNFT(walletAddress: string, signAndExecuteTransaction: any) {
+    if (!this.validateContract()) {
+      throw new Error("Contract not configured. Please set NEXT_PUBLIC_CONTRACT_PACKAGE_ID environment variable.")
+    }
+
+    // Validate inputs
+    if (!walletAddress) {
+      throw new Error("Wallet address is required")
+    }
+
+    try {
+      console.log(`[v0] Minting OG NFT for wallet: ${walletAddress}`)
+      
+      const tx = new Transaction()
+      
+      // Set gas budget for NFT minting transaction
+      tx.setGasBudget(DEFAULT_GAS_BUDGET)
+
+      // Call the og_nft::mint function from the same package
+      tx.moveCall({
+        target: `${CONTRACT_PACKAGE_ID}::og_nft::mint`,
+        arguments: [],
+      })
+
+      console.log(`[v0] Transaction prepared, calling smart contract: ${CONTRACT_PACKAGE_ID}::og_nft::mint`)
+
+      // Execute the transaction using the correct pattern for Suiet wallet kit
+      console.log(`[v0] Executing NFT mint transaction...`)
+      
+      // Add timeout to prevent hanging indefinitely
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("NFT mint transaction timeout after 60 seconds")), 60000)
+      })
+      
+      const transactionPromise = signAndExecuteTransaction({
+        transaction: tx,
+      })
+      
+      const result = await Promise.race([transactionPromise, timeoutPromise])
+      
+      console.log(`[v0] NFT mint transaction successful with digest: ${result.digest}`)
+      return result
+    } catch (error) {
+      console.error("Error minting OG NFT:", error)
+      
+      // Provide more helpful error messages
+      let userFriendlyMessage = "Failed to mint OG NFT"
+      
+      if (error instanceof Error) {
+        if (error.message.includes("Contract not configured")) {
+          userFriendlyMessage = "Smart contract not configured. Please contact the administrator."
+        } else if (error.message.includes("Insufficient")) {
+          userFriendlyMessage = "Insufficient SUI balance for gas fees. Please add more SUI to your wallet."
+        } else if (error.message.includes("Gas")) {
+          userFriendlyMessage = "Transaction failed due to gas issues. Please try again."
+        } else if (error.message.includes("module")) {
+          userFriendlyMessage = "NFT module not found in the contract. Please contact the administrator."
+        } else if (error.message.includes("function")) {
+          userFriendlyMessage = "NFT mint function not available. Please contact the administrator."
+        }
+      }
+      
+      throw new Error(userFriendlyMessage)
+    }
+  }
+
   async getTreasuryBalance(treasuryId: string) {
     try {
       const object = await this.client.getObject({
@@ -484,6 +550,26 @@ export async function finishGame(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to finish game",
+    }
+  }
+}
+
+export async function mintOGNFT(
+  senderAddress: string,
+  signAndExecuteTransaction: any
+) {
+  try {
+    const result = await suiContract.mintOGNFT(senderAddress, signAndExecuteTransaction) as any
+    
+    return {
+      success: true,
+      digest: result.digest,
+    }
+  } catch (error) {
+    console.error("Error in mintOGNFT:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to mint OG NFT",
     }
   }
 }
