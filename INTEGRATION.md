@@ -19,7 +19,7 @@ NEXT_PUBLIC_NETWORK=devnet  # devnet, testnet, ou mainnet
 O projeto integra com o seguinte contrato SUI Move:
 
 ```move
-module 0x0::bet;
+module 0x0::main;
 
 use sui::sui::SUI;
 use sui::coin::{Self, Coin};
