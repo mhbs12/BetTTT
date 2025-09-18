@@ -214,9 +214,9 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
         return
       }
 
-      // Check if bet amounts match
-      if (roomToJoin.betAmount && joinBetAmount !== roomToJoin.betAmount) {
-        setError(`Bet amount must match room bet amount: ${roomToJoin.betAmount} SUI`)
+      // Check if bet amount is equal or greater than room's bet amount
+      if (roomToJoin.betAmount && parseFloat(joinBetAmount) < parseFloat(roomToJoin.betAmount)) {
+        setError(`Bet amount must be equal or greater than room bet amount: ${roomToJoin.betAmount} SUI`)
         setLoading(false)
         return
       }
@@ -598,7 +598,7 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
                 step="0.1"
               />
               <p className="text-xs text-muted-foreground">
-                Must match the room's bet amount
+                Must be equal or greater than the room's bet amount
               </p>
             </div>
 
