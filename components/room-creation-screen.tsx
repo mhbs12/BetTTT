@@ -144,7 +144,18 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
 
       if (!contractResult.success || !contractResult.treasuryId) {
         console.error("[v0] Failed to create SUI contract bet:", contractResult.error)
-        setError(`Failed to create blockchain bet: ${contractResult.error || "Transaction failed"}`)
+        const errorMessage = contractResult.error || "Transaction failed"
+        
+        // Provide more specific error messages based on common failure patterns
+        if (errorMessage.includes("timeout")) {
+          setError("Transaction timed out. Please check your wallet and try again.")
+        } else if (errorMessage.includes("User denied")) {
+          setError("Transaction was cancelled. Please approve the transaction in your wallet.")
+        } else if (errorMessage.includes("Insufficient")) {
+          setError("Insufficient SUI balance. Please add more SUI to your wallet.")
+        } else {
+          setError(`Failed to create blockchain bet: ${errorMessage}`)
+        }
         setLoading(false)
         return
       }

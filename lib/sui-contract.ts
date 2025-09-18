@@ -90,25 +90,23 @@ export class SuiGameContract {
 
       console.log(`[v0] Transaction prepared, calling smart contract: ${CONTRACT_PACKAGE_ID}::main::criar_aposta with coin and amount ${amountInMist}`)
 
-      // Execute the transaction using the modern dapp-kit pattern
-      // The signAndExecuteTransaction is a mutate function that returns a promise
-      return new Promise((resolve, reject) => {
-        signAndExecuteTransaction(
-          {
-            transaction: tx,
-          },
-          {
-            onSuccess: (result: any) => {
-              console.log(`[v0] Transaction successful with digest: ${result.digest}`)
-              resolve(result)
-            },
-            onError: (error: any) => {
-              console.error(`[v0] Transaction failed:`, error)
-              reject(error)
-            },
-          }
-        )
+      // Execute the transaction using the correct pattern for Suiet wallet kit
+      // signAndExecuteTransaction should be called as an async function directly
+      console.log(`[v0] Executing transaction...`)
+      
+      // Add timeout to prevent hanging indefinitely
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Transaction timeout after 60 seconds")), 60000)
       })
+      
+      const transactionPromise = signAndExecuteTransaction({
+        transaction: tx,
+      })
+      
+      const result = await Promise.race([transactionPromise, timeoutPromise])
+      
+      console.log(`[v0] Transaction successful with digest: ${result.digest}`)
+      return result
     } catch (error) {
       console.error("Error creating betting room:", error)
       
@@ -169,24 +167,22 @@ export class SuiGameContract {
 
       console.log(`[v0] Transaction prepared, calling smart contract: ${CONTRACT_PACKAGE_ID}::main::entrar_aposta with treasury ${treasuryId}, coin, and amount ${amountInMist}`)
 
-      // Execute the transaction using the modern dapp-kit pattern
-      return new Promise((resolve, reject) => {
-        signAndExecuteTransaction(
-          {
-            transaction: tx,
-          },
-          {
-            onSuccess: (result: any) => {
-              console.log(`[v0] Join transaction successful with digest: ${result.digest}`)
-              resolve(result)
-            },
-            onError: (error: any) => {
-              console.error(`[v0] Join transaction failed:`, error)
-              reject(error)
-            },
-          }
-        )
+      // Execute the transaction using the correct pattern for Suiet wallet kit
+      console.log(`[v0] Executing join transaction...`)
+      
+      // Add timeout to prevent hanging indefinitely
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Join transaction timeout after 60 seconds")), 60000)
       })
+      
+      const transactionPromise = signAndExecuteTransaction({
+        transaction: tx,
+      })
+      
+      const result = await Promise.race([transactionPromise, timeoutPromise])
+      
+      console.log(`[v0] Join transaction successful with digest: ${result.digest}`)
+      return result
     } catch (error) {
       console.error("Error joining betting room:", error)
       
@@ -228,24 +224,22 @@ export class SuiGameContract {
         arguments: [tx.pure.address(winnerAddress), tx.object(treasuryId)],
       })
 
-      // Execute the transaction using the modern dapp-kit pattern
-      return new Promise((resolve, reject) => {
-        signAndExecuteTransaction(
-          {
-            transaction: tx,
-          },
-          {
-            onSuccess: (result: any) => {
-              console.log(`[v0] Finish game transaction successful with digest: ${result.digest}`)
-              resolve(result)
-            },
-            onError: (error: any) => {
-              console.error(`[v0] Finish game transaction failed:`, error)
-              reject(error)
-            },
-          }
-        )
+      // Execute the transaction using the correct pattern for Suiet wallet kit
+      console.log(`[v0] Executing finish game transaction...`)
+      
+      // Add timeout to prevent hanging indefinitely
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Finish game transaction timeout after 60 seconds")), 60000)
       })
+      
+      const transactionPromise = signAndExecuteTransaction({
+        transaction: tx,
+      })
+      
+      const result = await Promise.race([transactionPromise, timeoutPromise])
+      
+      console.log(`[v0] Finish game transaction successful with digest: ${result.digest}`)
+      return result
     } catch (error) {
       console.error("Error finishing game:", error)
       throw error
