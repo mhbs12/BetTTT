@@ -75,7 +75,15 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
         console.error("[v0] Error fetching room state:", error)
 
         if (error instanceof Error && error.message.includes("Room not found")) {
-          console.log("[v0] Room no longer exists, returning to lobby")
+          console.log("[v0] Room no longer exists, attempting cleanup and returning to lobby")
+          // Try to notify server that we're leaving (even if room doesn't exist)
+          if (account?.address) {
+            try {
+              await leaveRoom(room.id, account.address)
+            } catch (leaveError) {
+              console.log("[v0] Expected error when leaving non-existent room:", leaveError)
+            }
+          }
           alert("This room is no longer available. Returning to lobby.")
           onLeaveRoom()
           return
@@ -91,7 +99,15 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
             setConnectionStatus("connected")
           }, backoffDelay)
         } else {
-          console.log("[v0] Max retries reached, returning to lobby")
+          console.log("[v0] Max retries reached, attempting cleanup and returning to lobby")
+          // Try to notify server that we're leaving before giving up
+          if (account?.address) {
+            try {
+              await leaveRoom(room.id, account.address)
+            } catch (leaveError) {
+              console.log("[v0] Error during final cleanup:", leaveError)
+            }
+          }
           alert("Unable to reconnect to the game. Returning to lobby.")
           onLeaveRoom()
         }
