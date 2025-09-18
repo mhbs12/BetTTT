@@ -42,11 +42,12 @@ export async function criarAposta(
       console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
     
-    // Call the criar_aposta function with the original coin and amount
-    // The Move function will handle the coin splitting internally
+    // Call the criar_aposta function - Move function expects (mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
+    // Split the coin to the exact bet amount and pass the split coin
+    const betCoin = tx.splitCoins(tx.object(coinObjectId), [tx.pure.u64(amount)])
     tx.moveCall({
       target: `${PACKAGE_ID}::${MODULE_NAME}::criar_aposta`,
-      arguments: [tx.object(coinObjectId), tx.pure.u64(amount)],
+      arguments: [betCoin, tx.pure.u64(amount)],
     })
 
     console.log("[v0] criarAposta: Transaction prepared, executing...")
@@ -150,11 +151,12 @@ export async function entrarAposta(
       console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
     
-    // Call the entrar_aposta function with the original coin and amount
-    // The Move function will handle the coin splitting internally
+    // Call the entrar_aposta function - Move function expects (treasury: &mut Treasury, mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
+    // Split the coin to the exact bet amount and pass the split coin
+    const betCoin = tx.splitCoins(tx.object(coinObjectId), [tx.pure.u64(amount)])
     tx.moveCall({
       target: `${PACKAGE_ID}::${MODULE_NAME}::entrar_aposta`,
-      arguments: [tx.object(treasuryId), tx.object(coinObjectId), tx.pure.u64(amount)],
+      arguments: [tx.object(treasuryId), betCoin, tx.pure.u64(amount)],
     })
 
     console.log("[v0] entrarAposta: Transaction prepared, executing...")
