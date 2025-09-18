@@ -115,14 +115,16 @@ export class SuiGameContract {
       // Provide more helpful error messages
       let userFriendlyMessage = "Failed to create betting room"
       
-      if (error.message.includes("Contract not configured")) {
-        userFriendlyMessage = "Smart contract not configured. Please contact the administrator."
-      } else if (error.message.includes("Insufficient")) {
-        userFriendlyMessage = "Insufficient SUI balance. Please add more SUI to your wallet."
-      } else if (error.message.includes("Gas")) {
-        userFriendlyMessage = "Transaction failed due to gas issues. Please try again with a smaller amount."
-      } else if (error.message.includes("splitCoins")) {
-        userFriendlyMessage = "Unable to prepare bet amount. Please check your wallet balance."
+      if (error instanceof Error) {
+        if (error.message.includes("Contract not configured")) {
+          userFriendlyMessage = "Smart contract not configured. Please contact the administrator."
+        } else if (error.message.includes("Insufficient")) {
+          userFriendlyMessage = "Insufficient SUI balance. Please add more SUI to your wallet."
+        } else if (error.message.includes("Gas")) {
+          userFriendlyMessage = "Transaction failed due to gas issues. Please try again with a smaller amount."
+        } else if (error.message.includes("splitCoins")) {
+          userFriendlyMessage = "Unable to prepare bet amount. Please check your wallet balance."
+        }
       }
       
       throw new Error(userFriendlyMessage)
@@ -191,16 +193,18 @@ export class SuiGameContract {
       // Provide more helpful error messages
       let userFriendlyMessage = "Failed to join betting room"
       
-      if (error.message.includes("Contract not configured")) {
-        userFriendlyMessage = "Smart contract not configured. Please contact the administrator."
-      } else if (error.message.includes("Insufficient")) {
-        userFriendlyMessage = "Insufficient SUI balance. Please add more SUI to your wallet."
-      } else if (error.message.includes("Gas")) {
-        userFriendlyMessage = "Transaction failed due to gas issues. Please try again."
-      } else if (error.message.includes("splitCoins")) {
-        userFriendlyMessage = "Unable to prepare bet amount. Please check your wallet balance."
-      } else if (error.message.includes("object")) {
-        userFriendlyMessage = "Invalid treasury ID. The room may no longer exist."
+      if (error instanceof Error) {
+        if (error.message.includes("Contract not configured")) {
+          userFriendlyMessage = "Smart contract not configured. Please contact the administrator."
+        } else if (error.message.includes("Insufficient")) {
+          userFriendlyMessage = "Insufficient SUI balance. Please add more SUI to your wallet."
+        } else if (error.message.includes("Gas")) {
+          userFriendlyMessage = "Transaction failed due to gas issues. Please try again."
+        } else if (error.message.includes("splitCoins")) {
+          userFriendlyMessage = "Unable to prepare bet amount. Please check your wallet balance."
+        } else if (error.message.includes("object")) {
+          userFriendlyMessage = "Invalid treasury ID. The room may no longer exist."
+        }
       }
       
       throw new Error(userFriendlyMessage)
@@ -327,48 +331,71 @@ export class SuiGameContract {
         }
         
         // On final attempt, throw a more descriptive error
-        throw new Error(`Failed to get treasury info after ${retries} attempts: ${error.message}`)
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        throw new Error(`Failed to get treasury info after ${retries} attempts: ${errorMessage}`)
       }
     }
     
     return null
   }
 
-  async getTreasuryFromTransaction(transactionDigest: string) {
-    try {
-      console.log(`[v0] Retrieving treasury ID from transaction:`, transactionDigest)
-      
-      const transaction = await this.client.getTransactionBlock({
-        digest: transactionDigest,
-        options: { showObjectChanges: true },
-      })
+  async getTreasuryFromTransaction(transactionDigest: string, maxRetries = 5) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[v0] Retrieving treasury ID from transaction (attempt ${attempt}/${maxRetries}):`, transactionDigest)
+        
+        const transaction = await this.client.getTransactionBlock({
+          digest: transactionDigest,
+          options: { showObjectChanges: true },
+        })
 
-      if (transaction.objectChanges) {
-        // Try multiple approaches to find the treasury object
-        let treasuryObject = transaction.objectChanges.find(
-          (change: any) => change.type === "created" && change.objectType && 
-          (change.objectType.includes("Treasury") || change.objectType.includes("treasury"))
-        )
-        
-        // Fallback: look for any created object that might be the treasury
-        if (!treasuryObject) {
-          treasuryObject = transaction.objectChanges.find(
-            (change: any) => change.type === "created" && change.objectId
+        if (transaction.objectChanges) {
+          // Try multiple approaches to find the treasury object
+          let treasuryObject = transaction.objectChanges.find(
+            (change: any) => change.type === "created" && change.objectType && 
+            (change.objectType.includes("Treasury") || change.objectType.includes("treasury"))
           )
+          
+          // Fallback: look for any created object that might be the treasury
+          if (!treasuryObject) {
+            treasuryObject = transaction.objectChanges.find(
+              (change: any) => change.type === "created" && change.objectId
+            )
+          }
+          
+          if (treasuryObject?.objectId) {
+            console.log(`[v0] Treasury ID found in transaction:`, treasuryObject.objectId)
+            return treasuryObject.objectId
+          }
         }
         
-        if (treasuryObject?.objectId) {
-          console.log(`[v0] Treasury ID found in transaction:`, treasuryObject.objectId)
-          return treasuryObject.objectId
+        // If we didn't find the treasury but we're not on the last attempt, wait and retry
+        if (attempt < maxRetries) {
+          const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000) // Exponential backoff, max 5 seconds
+          console.log(`[v0] Treasury not found in attempt ${attempt}, waiting ${waitTime}ms before retry...`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          continue
         }
+        
+        console.warn(`[v0] No treasury object found in transaction after ${maxRetries} attempts:`, transactionDigest)
+        return null
+      } catch (error) {
+        console.error(`[v0] Error retrieving treasury from transaction (attempt ${attempt}/${maxRetries}):`, error)
+        
+        // If this is the last attempt, return null
+        if (attempt === maxRetries) {
+          console.error(`[v0] Failed to retrieve treasury ID after ${maxRetries} attempts`)
+          return null
+        }
+        
+        // Wait before retrying on error
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
+        console.log(`[v0] Waiting ${waitTime}ms before retry due to error...`)
+        await new Promise(resolve => setTimeout(resolve, waitTime))
       }
-      
-      console.warn(`[v0] No treasury object found in transaction:`, transactionDigest)
-      return null
-    } catch (error) {
-      console.error(`[v0] Error retrieving treasury from transaction:`, error)
-      return null
     }
+    
+    return null
   }
 }
 
@@ -380,14 +407,29 @@ export async function criarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoinId?: string,
+  progressCallback?: (message: string) => void
 ) {
   try {
     const betAmountSui = parseFloat(amount) / 1000000000 // Convert MIST to SUI
-    const result = await suiContract.createBettingRoom(senderAddress, betAmountSui, signAndExecuteTransaction)
+    const result = await suiContract.createBettingRoom(senderAddress, betAmountSui, signAndExecuteTransaction) as any
     
-    // Get treasury ID from transaction
+    console.log(`[v0] Transaction successful, retrieving treasury ID from digest: ${result.digest}`)
+    progressCallback?.("Transaction signed! Processing blockchain data...")
+    
+    // Get treasury ID from transaction with retry logic
     const treasuryId = await suiContract.getTreasuryFromTransaction(result.digest)
+    
+    if (!treasuryId) {
+      console.error(`[v0] Failed to retrieve treasury ID from transaction: ${result.digest}`)
+      return {
+        success: false,
+        error: "Transaction completed but failed to retrieve treasury ID. Please try creating the room again.",
+        digest: result.digest,
+      }
+    }
+    
+    console.log(`[v0] Successfully retrieved treasury ID: ${treasuryId}`)
     
     return {
       success: true,
@@ -398,7 +440,7 @@ export async function criarAposta(
     console.error("Error in criarAposta:", error)
     return {
       success: false,
-      error: error.message || "Failed to create bet",
+      error: error instanceof Error ? error.message : "Failed to create bet",
     }
   }
 }
@@ -409,11 +451,13 @@ export async function entrarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoinId?: string,
+  progressCallback?: (message: string) => void
 ) {
   try {
     const betAmountSui = parseFloat(amount) / 1000000000 // Convert MIST to SUI
-    const result = await suiContract.joinBettingRoom(treasuryId, betAmountSui, signAndExecuteTransaction)
+    progressCallback?.("Transaction signed! Processing blockchain data...")
+    const result = await suiContract.joinBettingRoom(treasuryId, betAmountSui, signAndExecuteTransaction) as any
     
     return {
       success: true,
@@ -423,7 +467,7 @@ export async function entrarAposta(
     console.error("Error in entrarAposta:", error)
     return {
       success: false,
-      error: error.message || "Failed to join bet",
+      error: error instanceof Error ? error.message : "Failed to join bet",
     }
   }
 }
@@ -435,7 +479,7 @@ export async function finishGame(
   signAndExecuteTransaction: any
 ) {
   try {
-    const result = await suiContract.finishGame(treasuryId, winnerAddress, signAndExecuteTransaction)
+    const result = await suiContract.finishGame(treasuryId, winnerAddress, signAndExecuteTransaction) as any
     
     return {
       success: true,
@@ -445,7 +489,7 @@ export async function finishGame(
     console.error("Error in finishGame:", error)
     return {
       success: false,
-      error: error.message || "Failed to finish game",
+      error: error instanceof Error ? error.message : "Failed to finish game",
     }
   }
 }
@@ -476,7 +520,7 @@ export async function getUserCoins(ownerAddress: string) {
     console.error("[v0] getUserCoins: Error getting user coins:", error)
     return {
       success: false,
-      error: error.message || "Failed to get coins",
+      error: error instanceof Error ? error.message : "Failed to get coins",
     }
   }
 }
