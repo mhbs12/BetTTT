@@ -73,7 +73,7 @@ class GameStore {
       // Check if player was already in the room
       const existingPlayer = room.players.find((p) => p.address === playerAddress)
       if (!existingPlayer) {
-        // Re-add the player to the room
+        // Re-add the player to the room with correct symbol
         const symbol = room.players.length === 0 ? "X" : "O"
         room.players.push({
           address: playerAddress,
@@ -89,14 +89,21 @@ class GameStore {
     const existingPlayer = room.players.find((p) => p.address === playerAddress)
     if (existingPlayer) return room
 
-    // Add second player
-    if (room.players.length === 1) {
+    // Add second player only if room has exactly 1 player and is waiting
+    if (room.players.length === 1 && room.status === "waiting") {
       room.players.push({
         address: playerAddress,
         name: playerName,
         symbol: "O",
       })
       room.status = "playing"
+    } else if (room.players.length === 0 && room.status === "waiting") {
+      // Handle case where room exists but has no players (shouldn't normally happen, but defensive)
+      room.players.push({
+        address: playerAddress,
+        name: playerName,
+        symbol: "X",
+      })
     }
 
     return room
@@ -131,7 +138,12 @@ class GameStore {
   }
 
   getRoom(roomId: string): GameRoom | null {
-    return this.rooms.get(roomId) || null
+    const room = this.rooms.get(roomId)
+    if (!room) return null
+    
+    // Update last activity when room is accessed to prevent premature cleanup
+    room.lastActivity = Date.now()
+    return room
   }
 
   getAllRooms(): GameRoom[] {
@@ -160,36 +172,44 @@ class GameStore {
   private cleanupExpiredDisconnections(): void {
     const now = Date.now()
     const disconnectionGracePeriod = 5 * 60 * 1000 // 5 minutes grace period
+    const roomInactivityTimeout = 15 * 60 * 1000 // 15 minutes of inactivity before room cleanup
     
     for (const [roomId, room] of this.rooms.entries()) {
-      if (!room.disconnectedPlayers || room.disconnectedPlayers.length === 0) continue
+      // Check if room has been inactive for too long
+      const lastActivity = room.lastActivity || room.createdAt
+      const isRoomInactive = now - lastActivity > roomInactivityTimeout
       
-      // Check for expired disconnections
-      const expiredDisconnections = room.disconnectedPlayers.filter(
-        dp => now - dp.disconnectedAt > disconnectionGracePeriod
-      )
-      
-      if (expiredDisconnections.length > 0) {
-        // Remove expired disconnections
-        room.disconnectedPlayers = room.disconnectedPlayers.filter(
-          dp => now - dp.disconnectedAt <= disconnectionGracePeriod
+      // Handle disconnected players
+      if (room.disconnectedPlayers && room.disconnectedPlayers.length > 0) {
+        // Check for expired disconnections
+        const expiredDisconnections = room.disconnectedPlayers.filter(
+          dp => now - dp.disconnectedAt > disconnectionGracePeriod
         )
         
-        // If this was an active game and a player's grace period expired, forfeit the game
-        if (room.status === "playing" && room.players.length === 1 && expiredDisconnections.length > 0) {
-          const remainingPlayer = room.players[0]
-          if (remainingPlayer) {
-            room.winner = remainingPlayer.address
-            room.status = "finished"
-            console.log(`[v0] Player(s) ${expiredDisconnections.map(d => d.address).join(', ')} grace period expired. Winner: ${remainingPlayer.address}`)
+        if (expiredDisconnections.length > 0) {
+          // Remove expired disconnections
+          room.disconnectedPlayers = room.disconnectedPlayers.filter(
+            dp => now - dp.disconnectedAt <= disconnectionGracePeriod
+          )
+          
+          // If this was an active game and a player's grace period expired, forfeit the game
+          if (room.status === "playing" && room.players.length === 1 && expiredDisconnections.length > 0) {
+            const remainingPlayer = room.players[0]
+            if (remainingPlayer) {
+              room.winner = remainingPlayer.address
+              room.status = "finished"
+              console.log(`[v0] Player(s) ${expiredDisconnections.map(d => d.address).join(', ')} grace period expired. Winner: ${remainingPlayer.address}`)
+            }
           }
         }
-        
-        // If room is empty and has no more disconnected players, delete it
-        if (room.players.length === 0 && room.disconnectedPlayers.length === 0) {
-          this.rooms.delete(roomId)
-          console.log(`[v0] Room ${roomId} deleted - grace period expired, no players remaining`)
-        }
+      }
+      
+      // Only delete room if it's completely empty AND inactive for a long time
+      if (room.players.length === 0 && 
+          (!room.disconnectedPlayers || room.disconnectedPlayers.length === 0) &&
+          isRoomInactive) {
+        this.rooms.delete(roomId)
+        console.log(`[v0] Room ${roomId} deleted - no players and inactive for ${Math.round((now - lastActivity) / 60000)} minutes`)
       }
     }
   }

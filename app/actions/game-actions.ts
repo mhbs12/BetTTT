@@ -97,18 +97,21 @@ export async function getRoomState(roomId: string) {
       return { success: false, error: "Room ID is required" }
     }
 
-    // Trigger cleanup of expired disconnections before getting room state
-    gameStore.forceCleanupExpiredDisconnections()
-
-    const room = gameStore.getRoom(roomId.trim())
+    const trimmedRoomId = roomId.trim()
+    
+    // Get room first to update its activity timestamp, then do cleanup
+    const room = gameStore.getRoom(trimmedRoomId)
 
     if (!room) {
-      console.log("[v0] Server: Room not found", { roomId, availableRooms: gameStore.getAllRooms().length })
+      console.log("[v0] Server: Room not found", { roomId: trimmedRoomId, availableRooms: gameStore.getAllRooms().length })
       return { success: false, error: "Room not found" }
     }
 
+    // Now that we have the room and updated its activity, trigger cleanup of other expired rooms
+    gameStore.forceCleanupExpiredDisconnections()
+
     console.log("[v0] Server: Room state retrieved", {
-      roomId,
+      roomId: trimmedRoomId,
       status: room.status,
       players: room.players.length,
       disconnectedPlayers: room.disconnectedPlayers?.length || 0,
