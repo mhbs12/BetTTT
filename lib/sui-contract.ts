@@ -34,12 +34,11 @@ export async function criarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] criarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
+    // Note: We let SUI SDK handle gas payment automatically from available coins
+    // The SDK will automatically select appropriate coins for gas payment
+    console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
     if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
-    } else {
-      console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
+      console.log("[v0] criarAposta: Separate gas coin available:", gasCoinId, "but letting SDK handle gas selection")
     }
     
     // Call the criar_aposta function - Move function expects (mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
@@ -143,12 +142,11 @@ export async function entrarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] entrarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
+    // Note: We let SUI SDK handle gas payment automatically from available coins
+    // The SDK will automatically select appropriate coins for gas payment
+    console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
     if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
-    } else {
-      console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
+      console.log("[v0] entrarAposta: Separate gas coin available:", gasCoinId, "but letting SDK handle gas selection")
     }
     
     // Call the entrar_aposta function - Move function expects (treasury: &mut Treasury, mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
@@ -353,22 +351,39 @@ export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist
     }
   }
   
-  // Strategy 3: Check if we have enough total balance but need coin consolidation
+  // Strategy 3: Check if we have a betting coin and enough total balance for gas
+  // SUI SDK can handle gas payment from multiple coins automatically
   const totalBalance = coins.reduce((sum, coin) => sum + parseInt(coin.balance), 0)
   
+  if (bettingCoin && totalBalance >= betAmount + gasReserveMist) {
+    console.log("[v0] Strategy 3 - Betting coin found, letting SDK handle gas from remaining balance")
+    console.log("[v0] Betting coin:", bettingCoin.coinObjectId)
+    console.log("[v0] Total balance available for gas:", mistToSui((totalBalance - betAmount).toString()), "SUI")
+    return {
+      strategy: "betting_coin_with_auto_gas",
+      bettingCoin,
+      gasCoin: null, // Let SDK choose from available coins
+      isValid: true,
+      gasReserve: gasReserveMist,
+      totalBalance,
+      availableForGas: totalBalance - betAmount
+    }
+  }
+  
+  // Strategy 4: Check if we have enough total balance but need coin consolidation  
   if (totalBalance >= betAmount + gasReserveMist) {
     return {
       strategy: "needs_consolidation",
       bettingCoin: null,
       gasCoin: null,
       isValid: false,
-      error: `Sufficient total balance (${mistToSui(totalBalance.toString())} SUI) but needs coin consolidation. Consider consolidating your coins first.`,
+      error: `Sufficient total balance (${mistToSui(totalBalance.toString())} SUI) but no single coin can cover the bet amount. Consider consolidating your coins first.`,
       totalBalance,
       requiredBalance: betAmount + gasReserveMist
     }
   }
   
-  // Strategy 4: Insufficient balance
+  // Strategy 5: Insufficient balance
   return {
     strategy: "insufficient_balance",
     bettingCoin: null,

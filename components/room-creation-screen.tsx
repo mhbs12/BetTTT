@@ -119,6 +119,8 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       console.log("[v0] Gas strategy:", coinSelection.strategy)
       if (coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
         console.log("[v0] Using separate gas coin:", coinSelection.gasCoin.coinObjectId)
+      } else if (coinSelection.strategy === "betting_coin_with_auto_gas") {
+        console.log("[v0] Gas payment will be handled automatically by SUI SDK from available coins")
       } else {
         console.log("[v0] Gas payment will be handled from the same coin")
       }
@@ -239,6 +241,8 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           console.log("[v0] Gas strategy:", coinSelection.strategy)
           if (coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
             console.log("[v0] Using separate gas coin:", coinSelection.gasCoin.coinObjectId)
+          } else if (coinSelection.strategy === "betting_coin_with_auto_gas") {
+            console.log("[v0] Gas payment will be handled automatically by SUI SDK from available coins")
           } else {
             console.log("[v0] Gas payment will be handled from the same coin")
           }
@@ -338,6 +342,8 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
           console.log("[v0] Gas strategy:", coinSelection.strategy)
           if (coinSelection.gasCoin && coinSelection.gasCoin.coinObjectId !== coinSelection.bettingCoin.coinObjectId) {
             console.log("[v0] Using separate gas coin:", coinSelection.gasCoin.coinObjectId)
+          } else if (coinSelection.strategy === "betting_coin_with_auto_gas") {
+            console.log("[v0] Gas payment will be handled automatically by SUI SDK from available coins")
           } else {
             console.log("[v0] Gas payment will be handled from the same coin")
           }
