@@ -107,6 +107,33 @@ For development on `devnet`:
 2. **Request devnet SUI**: Use the faucet at https://docs.sui.io/guides/developer/getting-started/get-coins
 3. **Verify balance**: Check your wallet shows SUI coins
 
+### SUI Move Integration Notes
+
+This project correctly implements SUI Move contract calls using the following pattern:
+
+#### Function Call Pattern
+```typescript
+// CORRECT: Pass entire coin object, let Move contract handle splitting
+tx.moveCall({
+  target: `${PACKAGE_ID}::main::criar_aposta`,
+  arguments: [tx.object(coinObjectId), tx.pure.u64(amount)],
+})
+
+// INCORRECT: Do not pre-split coins for Move functions that expect mut Coin<SUI>
+// tx.splitCoins() should NOT be used before calling these functions
+```
+
+#### Why This Approach Works
+- The Move contract functions (`criar_aposta`, `entrar_aposta`) expect `mut coin: Coin<SUI>` parameters
+- They handle coin splitting internally using `coin::split(&mut coin, amount, ctx)`
+- Pre-splitting coins in TypeScript would cause the Move function to receive an already-split coin
+- The Move function would then try to split again, causing transaction failures
+
+#### Common Issues
+- **"Coin split failed"**: Usually caused by pre-splitting coins in TypeScript
+- **"Insufficient balance"**: Check that the coin has enough balance for both bet amount and gas fees
+- **"Package not found"**: Verify `NEXT_PUBLIC_PACKAGE_ID` is set to your deployed package ID
+
 ### Support
 
 If you encounter issues:
@@ -115,3 +142,4 @@ If you encounter issues:
 2. Verify your `.env` configuration
 3. Ensure your wallet is connected and funded
 4. Make sure you're on the correct network (devnet/testnet/mainnet)
+5. Verify your SUI Move package is deployed and the package ID is correct
