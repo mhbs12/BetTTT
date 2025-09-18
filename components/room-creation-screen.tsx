@@ -163,13 +163,18 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       }
 
       console.log("[v0] Room created successfully with SUI contract integration")
-      setSuccess("Room created successfully with blockchain betting!")
+      
+      // Clear all UI state and transition to room immediately
+      setLoading(false)
+      setError("")
+      setSuccess("")
+      
+      // Transition to the room
       onRoomCreated(roomResult.room)
 
     } catch (error) {
       console.error("[v0] Error creating room:", error)
       setError(`Failed to create room: ${error instanceof Error ? error.message : "Unknown error"}`)
-    } finally {
       setLoading(false)
     }
   }
@@ -278,15 +283,19 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
 
       if (result.success && result.room) {
         console.log("[v0] Room joined successfully:", result.room)
-        setSuccess("Successfully joined the room!")
+        
+        // Clear UI state and transition to room
+        setLoading(false)
+        setError("")
+        setSuccess("")
         onRoomCreated(result.room)
       } else {
         setError(`Failed to join room: ${result.error || "Unknown error"}`)
+        setLoading(false)
       }
     } catch (error) {
       console.error("[v0] Error joining room:", error)
       setError(`Failed to join room: ${error instanceof Error ? error.message : "Unknown error"}`)
-    } finally {
       setLoading(false)
     }
   }
@@ -379,15 +388,19 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
 
       if (result.success && result.room) {
         console.log("[v0] Joined room successfully:", result.room)
-        setSuccess("Successfully joined the room!")
+        
+        // Clear UI state and transition to room
+        setLoading(false)
+        setError("")
+        setSuccess("")
         onRoomCreated(result.room)
       } else {
         setError(`Failed to join room: ${result.error || "Unknown error"}`)
+        setLoading(false)
       }
     } catch (error) {
       console.error("[v0] Error joining room:", error)
       setError(`Failed to join room: ${error instanceof Error ? error.message : "Unknown error"}`)
-    } finally {
       setLoading(false)
     }
   }
