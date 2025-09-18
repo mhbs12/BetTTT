@@ -10,17 +10,25 @@ Create a `.env` file in the root of your project with the following configuratio
 
 ```env
 # SUI Move Package Configuration
+NEXT_PUBLIC_CONTRACT_PACKAGE_ID=YOUR_PACKAGE_ID_HERE
 NEXT_PUBLIC_PACKAGE_ID=YOUR_PACKAGE_ID_HERE
 NEXT_PUBLIC_NETWORK=devnet
+NEXT_PUBLIC_DEFAULT_GAS_BUDGET=10000000
 ```
 
 ### Configuration Details
 
-#### NEXT_PUBLIC_PACKAGE_ID
+#### NEXT_PUBLIC_CONTRACT_PACKAGE_ID
 - **Required**: Yes
-- **Description**: The object ID of your deployed SUI Move package
+- **Description**: The object ID of your deployed SUI Move package (primary configuration)
 - **Example**: `0x1234567890abcdef1234567890abcdef12345678`
 - **How to get**: Deploy your SUI Move package and copy the package ID from the deployment output
+
+#### NEXT_PUBLIC_PACKAGE_ID
+- **Required**: No (legacy compatibility)
+- **Description**: Legacy environment variable name for backward compatibility
+- **Example**: `0x1234567890abcdef1234567890abcdef12345678`
+- **Note**: Set to the same value as NEXT_PUBLIC_CONTRACT_PACKAGE_ID for compatibility
 
 #### NEXT_PUBLIC_NETWORK
 - **Required**: No (defaults to `devnet`)
@@ -29,6 +37,12 @@ NEXT_PUBLIC_NETWORK=devnet
   - `testnet` - Test network
   - `mainnet` - Production network (real SUI required)
 - **Recommendation**: Use `devnet` for development and testing
+
+#### NEXT_PUBLIC_DEFAULT_GAS_BUDGET
+- **Required**: No (defaults to `10000000`)
+- **Description**: Default gas budget for SUI transactions in MIST units
+- **Example**: `10000000` (0.01 SUI)
+- **Recommendation**: Use default value unless you encounter gas issues
 
 ### SUI Move Contract
 
@@ -43,6 +57,17 @@ public entry fun entrar_aposta(treasury: &mut Treasury, mut coin: Coin<SUI>, amo
 
 // Finish the game and distribute winnings
 public entry fun finish_game(winner: address, treasury: Treasury, ctx: &mut TxContext)
+```
+
+The new implementation expects the contract functions to be in module `bet` instead of `main`:
+
+```move
+// Module structure expected by new implementation
+module package_addr::bet {
+    public entry fun criar_aposta(mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
+    public entry fun entrar_aposta(treasury: &mut Treasury, mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
+    public entry fun finish_game(winner: address, treasury: Treasury, ctx: &mut TxContext)
+}
 ```
 
 ### Deployment Steps
@@ -61,8 +86,10 @@ public entry fun finish_game(winner: address, treasury: Treasury, ctx: &mut TxCo
 
 4. **Update the `.env` file** with your actual package ID:
    ```env
+   NEXT_PUBLIC_CONTRACT_PACKAGE_ID=0x_YOUR_ACTUAL_PACKAGE_ID_HERE
    NEXT_PUBLIC_PACKAGE_ID=0x_YOUR_ACTUAL_PACKAGE_ID_HERE
    NEXT_PUBLIC_NETWORK=devnet
+   NEXT_PUBLIC_DEFAULT_GAS_BUDGET=10000000
    ```
 
 5. **Install dependencies and start the application**:
@@ -77,7 +104,9 @@ public entry fun finish_game(winner: address, treasury: Treasury, ctx: &mut TxCo
 
 This error can occur for several reasons:
 
-1. **Configuration not set**: Make sure `NEXT_PUBLIC_PACKAGE_ID` is set to your actual package ID (not `0x0`)
+1. **Configuration not set**: Make sure `NEXT_PUBLIC_CONTRACT_PACKAGE_ID` is set to your actual package ID (not empty or default value)
+
+2. **Legacy configuration**: If you're using the legacy `NEXT_PUBLIC_PACKAGE_ID`, update to use `NEXT_PUBLIC_CONTRACT_PACKAGE_ID`
 
 2. **Network issues**: Check that you're connected to the correct SUI network
 
@@ -88,7 +117,7 @@ This error can occur for several reasons:
 #### Configuration Warning
 
 If you see a red warning banner saying "Configuration Required", it means:
-- Your `NEXT_PUBLIC_PACKAGE_ID` is still set to the default value `0x0`
+- Your `NEXT_PUBLIC_CONTRACT_PACKAGE_ID` is not properly configured
 - You need to update your `.env` file with the actual package ID
 
 #### Debug Information
