@@ -5,7 +5,8 @@ import { useWallet } from "@suiet/wallet-kit"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { makeMove, getRoomState, leaveRoom, checkGameForfeit } from "@/app/actions/game-actions"
+import { RotateCcw } from "lucide-react"
+import { makeMove, getRoomState, leaveRoom, checkGameForfeit, resetGame } from "@/app/actions/game-actions"
 import { finishGame } from "@/lib/sui-contract"
 import type { GameRoom } from "@/lib/game-store"
 
@@ -211,6 +212,34 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
     }
   }
 
+  const handleResetGame = async () => {
+    if (!account?.address || loading) return
+
+    console.log("[v0] Resetting game:", room.id)
+    setLoading(true)
+
+    try {
+      const result = await resetGame(room.id)
+
+      if (result.success && result.room) {
+        console.log("[v0] Game reset successful:", result.room)
+        setRoom(result.room)
+        setConnectionStatus("connected")
+        setRetryCount(0)
+        setContractFinished(false) // Reset contract finished state
+      } else {
+        console.error("[v0] Game reset failed:", result.error)
+        alert(result.error || "Failed to reset game. Please try again.")
+      }
+    } catch (error) {
+      console.error("[v0] Error resetting game:", error)
+      alert("Network error. Failed to reset game. Please try again.")
+      setConnectionStatus("error")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const currentPlayer = room.players.find((p) => p.address === account?.address)
   const isMyTurn = currentPlayer?.symbol === room.currentPlayer
   const canPlay = room.status === "playing" && isMyTurn && !loading && connectionStatus === "connected"
@@ -352,6 +381,12 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
                 </p>
                 {getGameResult()?.winnerName && !getGameResult()?.isWinner && (
                   <p className="text-sm text-gray-600">Vencedor: {getGameResult()?.winnerName}</p>
+                )}
+                {getGameResult()?.message.includes("Empate") && (
+                  <Button onClick={handleResetGame} variant="outline" disabled={loading}>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Nova Partida
+                  </Button>
                 )}
               </div>
             </div>

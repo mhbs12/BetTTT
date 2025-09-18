@@ -195,3 +195,25 @@ export async function updateRoomTreasury(roomId: string, treasuryId: string) {
     return { success: false, error: "Failed to update room treasury. Please try again." }
   }
 }
+
+export async function resetGame(roomId: string) {
+  console.log("[v0] Server: Resetting game", { roomId })
+
+  try {
+    if (!roomId.trim()) {
+      return { success: false, error: "Room ID is required" }
+    }
+
+    const room = gameStore.resetGame(roomId.trim())
+
+    if (!room) {
+      return { success: false, error: "Room not found" }
+    }
+
+    console.log("[v0] Server: Game reset successfully", { roomId, status: room.status })
+    return { success: true, room }
+  } catch (error) {
+    console.error("[v0] Server: Error resetting game", error)
+    return { success: false, error: "Failed to reset game. Please try again." }
+  }
+}

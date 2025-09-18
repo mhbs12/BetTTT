@@ -309,6 +309,22 @@ class GameStore {
     this.rooms.set(roomId, room)
     return room
   }
+
+  resetGame(roomId: string): GameRoom | null {
+    const room = this.rooms.get(roomId)
+    if (!room) return null
+
+    // Update last activity
+    room.lastActivity = Date.now()
+
+    // Reset the game state while keeping the same players
+    room.board = Array(9).fill(null)
+    room.currentPlayer = "X"
+    room.winner = null
+    room.status = room.players.length === 2 ? "playing" : "waiting"
+
+    return room
+  }
 }
 
 export const gameStore = new GameStore()
