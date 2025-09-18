@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { WalletConnectPopup } from "@/components/wallet-connect-popup"
 import { createRoom, joinRoom, getAvailableRooms, updateRoomTreasury } from "@/app/actions/game-actions"
-import { criarAposta, entrarAposta, getUserCoins, suiToMist, selectCoinsForBettingWithGasStrategy } from "@/lib/sui-contract"
-import { PACKAGE_ID, NETWORK } from "@/lib/sui-client"
+import { criarAposta, entrarAposta, getUserCoins, suiToMist, selectCoinsForBettingWithGasStrategy, suiContract } from "@/lib/sui-contract"
+import { getCurrentNetwork } from "@/lib/network-config"
 import { Plus, Hash, Sparkles, GamepadIcon, Users, Coins, AlertTriangle, CheckCircle } from "lucide-react"
 import type { GameRoom } from "@/lib/game-store"
 
@@ -415,15 +415,15 @@ export function RoomCreationScreen({ onRoomCreated }: RoomCreationScreenProps) {
       </div>
 
       {/* Configuration Warning */}
-      {PACKAGE_ID === "0x0" && (
+      {!suiContract.getNetworkInfo().contractPackageId && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Configuration Required:</strong> Please set NEXT_PUBLIC_PACKAGE_ID in your .env file to your deployed SUI Move package ID. 
+            <strong>Configuration Required:</strong> Please set NEXT_PUBLIC_CONTRACT_PACKAGE_ID in your .env file to your deployed SUI Move package ID. 
             Currently using default value which will cause betting functions to fail.
             <br />
             <span className="text-xs text-muted-foreground mt-1 block">
-              Network: {NETWORK} | Package ID: {PACKAGE_ID}
+              Network: {getCurrentNetwork()} | Package ID: {suiContract.getNetworkInfo().contractPackageId || 'NOT CONFIGURED'}
             </span>
           </AlertDescription>
         </Alert>

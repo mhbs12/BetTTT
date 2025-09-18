@@ -1,15 +1,380 @@
 import { Transaction } from "@mysten/sui/transactions"
-import { suiClient, PACKAGE_ID, MODULE_NAME, NETWORK } from "@/lib/sui-client"
+import { SuiClient } from "@mysten/sui/client"
+import { getCurrentNetwork, getCurrentNetworkUrl, getNetworkInfo } from "@/lib/network-config"
 
-/**
- * Creates a bet (criar_aposta) by calling the SUI Move contract
- * @param senderAddress - Address of the player creating the bet
- * @param coinObjectId - Object ID of the SUI coin to use for betting
- * @param amount - Amount to bet in MIST (1 SUI = 1,000,000,000 MIST)
- * @param signAndExecuteTransaction - Function from wallet to sign and execute
- * @param gasCoinId - Optional explicit gas coin object ID for gas payment
- * @returns Promise with transaction result and treasury object ID
- */
+const NETWORK = getCurrentNetwork()
+const CONTRACT_PACKAGE_ID = process.env.NEXT_PUBLIC_CONTRACT_PACKAGE_ID
+const DEFAULT_GAS_BUDGET = parseInt(process.env.NEXT_PUBLIC_DEFAULT_GAS_BUDGET || "10000000") // 0.01 SUI default
+
+export class SuiGameContract {
+  public client: SuiClient // Make client public so it can be accessed by legacy functions
+
+  constructor() {
+    this.client = new SuiClient({ url: getCurrentNetworkUrl() })
+    
+    // Log network configuration for debugging
+    if (typeof window !== "undefined") {
+      const networkInfo = getNetworkInfo()
+      console.log(`[v0] SUI Client initialized for network: ${networkInfo.network}`)
+      console.log(`[v0] SUI Client URL: ${networkInfo.endpoint}`)
+      console.log(`[v0] Contract Package ID: ${CONTRACT_PACKAGE_ID || 'NOT CONFIGURED'}`)
+    }
+  }
+
+  private validateContract(): boolean {
+    if (!CONTRACT_PACKAGE_ID) {
+      if (typeof window !== "undefined") {
+        console.error("[v0] Contract package ID not configured. Cannot execute blockchain transactions.")
+        console.error("[v0] Please set NEXT_PUBLIC_CONTRACT_PACKAGE_ID in your environment variables.")
+        console.error("[v0] Example: NEXT_PUBLIC_CONTRACT_PACKAGE_ID=0x1234567890abcdef1234567890abcdef12345678")
+        console.error(`[v0] Current network: ${NETWORK}`)
+        console.error(`[v0] Current SUI endpoint: ${getCurrentNetworkUrl()}`)
+      }
+      return false
+    }
+    return true
+  }
+
+  getNetworkInfo() {
+    const networkInfo = getNetworkInfo()
+    return {
+      network: networkInfo.network,
+      endpoint: networkInfo.endpoint,
+      contractPackageId: CONTRACT_PACKAGE_ID,
+      gasbudget: DEFAULT_GAS_BUDGET,
+      isTestnet: networkInfo.isTestnet,
+      isMainnet: networkInfo.isMainnet,
+      isDevnet: networkInfo.isDevnet,
+    }
+  }
+
+  async createBettingRoom(walletAddress: string, betAmount: number, signAndExecuteTransaction: any) {
+    if (!this.validateContract()) {
+      throw new Error("Contract not configured. Please set NEXT_PUBLIC_CONTRACT_PACKAGE_ID environment variable.")
+    }
+
+    // Validate inputs
+    if (!walletAddress) {
+      throw new Error("Wallet address is required")
+    }
+    
+    if (betAmount <= 0) {
+      throw new Error("Bet amount must be greater than 0")
+    }
+    
+    if (betAmount < 0.001) {
+      throw new Error("Minimum bet amount is 0.001 SUI")
+    }
+
+    try {
+      console.log(`[v0] Creating betting room: wallet=${walletAddress}, amount=${betAmount} SUI`)
+      
+      const tx = new Transaction()
+      
+      // Set gas budget to avoid automatic calculation issues
+      tx.setGasBudget(DEFAULT_GAS_BUDGET)
+
+      // Convert SUI to MIST (1 SUI = 1,000,000,000 MIST)
+      const amountInMist = BigInt(Math.floor(betAmount * 1000000000))
+      
+      console.log(`[v0] Converting ${betAmount} SUI to ${amountInMist} MIST`)
+      
+      // Split coins from gas to create the bet amount
+      const [coin] = tx.splitCoins(tx.gas, [amountInMist])
+
+      // Call the move function with correct arguments: SUI object and bet amount
+      tx.moveCall({
+        target: `${CONTRACT_PACKAGE_ID}::bet::criar_aposta`,
+        arguments: [coin, tx.pure.u64(amountInMist)],
+      })
+
+      console.log(`[v0] Transaction prepared, calling smart contract: ${CONTRACT_PACKAGE_ID}::bet::criar_aposta with coin and amount ${amountInMist}`)
+
+      // Execute the transaction using the modern dapp-kit pattern
+      // The signAndExecuteTransaction is a mutate function that returns a promise
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction(
+          {
+            transaction: tx,
+          },
+          {
+            onSuccess: (result: any) => {
+              console.log(`[v0] Transaction successful with digest: ${result.digest}`)
+              resolve(result)
+            },
+            onError: (error: any) => {
+              console.error(`[v0] Transaction failed:`, error)
+              reject(error)
+            },
+          }
+        )
+      })
+    } catch (error) {
+      console.error("Error creating betting room:", error)
+      
+      // Provide more helpful error messages
+      let userFriendlyMessage = "Failed to create betting room"
+      
+      if (error.message.includes("Contract not configured")) {
+        userFriendlyMessage = "Smart contract not configured. Please contact the administrator."
+      } else if (error.message.includes("Insufficient")) {
+        userFriendlyMessage = "Insufficient SUI balance. Please add more SUI to your wallet."
+      } else if (error.message.includes("Gas")) {
+        userFriendlyMessage = "Transaction failed due to gas issues. Please try again with a smaller amount."
+      } else if (error.message.includes("splitCoins")) {
+        userFriendlyMessage = "Unable to prepare bet amount. Please check your wallet balance."
+      }
+      
+      throw new Error(userFriendlyMessage)
+    }
+  }
+
+  async joinBettingRoom(treasuryId: string, betAmount: number, signAndExecuteTransaction: any) {
+    if (!this.validateContract()) {
+      throw new Error("Contract not configured. Please set NEXT_PUBLIC_CONTRACT_PACKAGE_ID environment variable.")
+    }
+
+    // Validate inputs
+    if (!treasuryId) {
+      throw new Error("Treasury ID is required")
+    }
+    
+    if (betAmount <= 0) {
+      throw new Error("Bet amount must be greater than 0")
+    }
+
+    try {
+      console.log(`[v0] Joining betting room: treasury=${treasuryId}, amount=${betAmount} SUI`)
+      
+      const tx = new Transaction()
+      
+      // Set gas budget to avoid automatic calculation issues
+      tx.setGasBudget(DEFAULT_GAS_BUDGET)
+
+      // Convert SUI to MIST (1 SUI = 1,000,000,000 MIST)
+      const amountInMist = BigInt(Math.floor(betAmount * 1000000000))
+      
+      console.log(`[v0] Converting ${betAmount} SUI to ${amountInMist} MIST`)
+      
+      // Split coins from gas to create the bet amount
+      const [coin] = tx.splitCoins(tx.gas, [amountInMist])
+
+      // Call the move function with correct arguments order: treasury first (by reference), then coin, then amount
+      tx.moveCall({
+        target: `${CONTRACT_PACKAGE_ID}::bet::entrar_aposta`,
+        arguments: [tx.object(treasuryId), coin, tx.pure.u64(amountInMist)],
+      })
+
+      console.log(`[v0] Transaction prepared, calling smart contract: ${CONTRACT_PACKAGE_ID}::bet::entrar_aposta with treasury ${treasuryId}, coin, and amount ${amountInMist}`)
+
+      // Execute the transaction using the modern dapp-kit pattern
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction(
+          {
+            transaction: tx,
+          },
+          {
+            onSuccess: (result: any) => {
+              console.log(`[v0] Join transaction successful with digest: ${result.digest}`)
+              resolve(result)
+            },
+            onError: (error: any) => {
+              console.error(`[v0] Join transaction failed:`, error)
+              reject(error)
+            },
+          }
+        )
+      })
+    } catch (error) {
+      console.error("Error joining betting room:", error)
+      
+      // Provide more helpful error messages
+      let userFriendlyMessage = "Failed to join betting room"
+      
+      if (error.message.includes("Contract not configured")) {
+        userFriendlyMessage = "Smart contract not configured. Please contact the administrator."
+      } else if (error.message.includes("Insufficient")) {
+        userFriendlyMessage = "Insufficient SUI balance. Please add more SUI to your wallet."
+      } else if (error.message.includes("Gas")) {
+        userFriendlyMessage = "Transaction failed due to gas issues. Please try again."
+      } else if (error.message.includes("splitCoins")) {
+        userFriendlyMessage = "Unable to prepare bet amount. Please check your wallet balance."
+      } else if (error.message.includes("object")) {
+        userFriendlyMessage = "Invalid treasury ID. The room may no longer exist."
+      }
+      
+      throw new Error(userFriendlyMessage)
+    }
+  }
+
+  async finishGame(treasuryId: string, winnerAddress: string, signAndExecuteTransaction: any) {
+    if (!this.validateContract()) {
+      throw new Error("Contract not configured. Please set NEXT_PUBLIC_CONTRACT_PACKAGE_ID.")
+    }
+
+    try {
+      const tx = new Transaction()
+      
+      // Set gas budget to avoid automatic calculation issues
+      tx.setGasBudget(DEFAULT_GAS_BUDGET)
+
+      // Call the move function with correct arguments order: winner_address first, then treasury
+      tx.moveCall({
+        target: `${CONTRACT_PACKAGE_ID}::bet::finish_game`,
+        arguments: [tx.pure.address(winnerAddress), tx.object(treasuryId)],
+      })
+
+      // Execute the transaction using the modern dapp-kit pattern
+      return new Promise((resolve, reject) => {
+        signAndExecuteTransaction(
+          {
+            transaction: tx,
+          },
+          {
+            onSuccess: (result: any) => {
+              console.log(`[v0] Finish game transaction successful with digest: ${result.digest}`)
+              resolve(result)
+            },
+            onError: (error: any) => {
+              console.error(`[v0] Finish game transaction failed:`, error)
+              reject(error)
+            },
+          }
+        )
+      })
+    } catch (error) {
+      console.error("Error finishing game:", error)
+      throw error
+    }
+  }
+
+  async getTreasuryBalance(treasuryId: string) {
+    try {
+      const object = await this.client.getObject({
+        id: treasuryId,
+        options: { showContent: true },
+      })
+
+      if (object.data?.content?.dataType === "moveObject") {
+        const fields = (object.data.content as any).fields
+        return Number.parseInt(fields.balance) / 1000000000 // Convert from MIST to SUI
+      }
+
+      return 0
+    } catch (error) {
+      console.error("Error getting treasury balance:", error)
+      return 0
+    }
+  }
+
+  async getTreasuryInfo(treasuryId: string, retries = 3) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`[v0] Getting treasury info (attempt ${attempt}/${retries}):`, treasuryId)
+        
+        const object = await this.client.getObject({
+          id: treasuryId,
+          options: { showContent: true },
+        })
+
+        if (!object.data) {
+          console.warn(`[v0] Treasury object not found: ${treasuryId}`)
+          if (attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)) // Exponential backoff
+            continue
+          }
+          throw new Error(`Treasury not found: ${treasuryId}`)
+        }
+
+        if (object.data.content?.dataType === "moveObject") {
+          const fields = (object.data.content as any).fields
+          
+          if (!fields || !fields.balance) {
+            console.warn(`[v0] Invalid treasury structure:`, fields)
+            throw new Error(`Invalid treasury structure: missing balance field`)
+          }
+          
+          const balance = Number.parseInt(fields.balance) / 1000000000 // Convert from MIST to SUI
+          
+          if (balance <= 0) {
+            console.warn(`[v0] Treasury has no balance:`, balance)
+            throw new Error(`Treasury is empty or invalid`)
+          }
+          
+          // The bet amount should be half the current balance (since first player already deposited)
+          const betAmount = balance / 2
+          
+          const treasuryInfo = {
+            balance,
+            betAmount,
+            treasuryId,
+            isActive: balance > 0
+          }
+          
+          console.log(`[v0] Treasury info retrieved successfully:`, treasuryInfo)
+          return treasuryInfo
+        }
+
+        console.warn(`[v0] Treasury object has unexpected data type:`, object.data.content?.dataType)
+        throw new Error(`Invalid treasury object type`)
+      } catch (error) {
+        console.error(`[v0] Error getting treasury info (attempt ${attempt}/${retries}):`, error)
+        
+        if (attempt < retries) {
+          // Exponential backoff: wait 1s, 2s, 3s between retries
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+          continue
+        }
+        
+        // On final attempt, throw a more descriptive error
+        throw new Error(`Failed to get treasury info after ${retries} attempts: ${error.message}`)
+      }
+    }
+    
+    return null
+  }
+
+  async getTreasuryFromTransaction(transactionDigest: string) {
+    try {
+      console.log(`[v0] Retrieving treasury ID from transaction:`, transactionDigest)
+      
+      const transaction = await this.client.getTransactionBlock({
+        digest: transactionDigest,
+        options: { showObjectChanges: true },
+      })
+
+      if (transaction.objectChanges) {
+        // Try multiple approaches to find the treasury object
+        let treasuryObject = transaction.objectChanges.find(
+          (change: any) => change.type === "created" && change.objectType && 
+          (change.objectType.includes("Treasury") || change.objectType.includes("treasury"))
+        )
+        
+        // Fallback: look for any created object that might be the treasury
+        if (!treasuryObject) {
+          treasuryObject = transaction.objectChanges.find(
+            (change: any) => change.type === "created" && change.objectId
+          )
+        }
+        
+        if (treasuryObject?.objectId) {
+          console.log(`[v0] Treasury ID found in transaction:`, treasuryObject.objectId)
+          return treasuryObject.objectId
+        }
+      }
+      
+      console.warn(`[v0] No treasury object found in transaction:`, transactionDigest)
+      return null
+    } catch (error) {
+      console.error(`[v0] Error retrieving treasury from transaction:`, error)
+      return null
+    }
+  }
+}
+
+export const suiContract = new SuiGameContract()
+
+// Legacy wrapper functions to maintain compatibility with existing code
 export async function criarAposta(
   senderAddress: string,
   coinObjectId: string,
@@ -18,80 +383,12 @@ export async function criarAposta(
   gasCoinId?: string
 ) {
   try {
-    // Check if package ID is properly configured
-    if (PACKAGE_ID === "0x0") {
-      throw new Error("Package ID not configured. Please set NEXT_PUBLIC_PACKAGE_ID environment variable.")
-    }
-
-    console.log("[v0] criarAposta: Creating bet with package:", PACKAGE_ID)
-    console.log("[v0] criarAposta: Amount:", amount, "MIST")
-    console.log("[v0] criarAposta: Coin object ID:", coinObjectId)
-    console.log("[v0] criarAposta: Note: Passing original coin, Move function handles splitting")
-
-    const tx = new Transaction()
+    const betAmountSui = parseFloat(amount) / 1000000000 // Convert MIST to SUI
+    const result = await suiContract.createBettingRoom(senderAddress, betAmountSui, signAndExecuteTransaction)
     
-    // Set the sender address for the transaction
-    tx.setSender(senderAddress)
-    console.log("[v0] criarAposta: Transaction sender set to:", senderAddress)
+    // Get treasury ID from transaction
+    const treasuryId = await suiContract.getTreasuryFromTransaction(result.digest)
     
-    // Note: We let SUI SDK handle gas payment automatically from available coins
-    // The SDK will automatically select appropriate coins for gas payment
-    console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] criarAposta: Separate gas coin available:", gasCoinId, "but letting SDK handle gas selection")
-    }
-    
-    // Call the criar_aposta function - Move function expects (mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
-    // Split the coin to the exact bet amount and pass the split coin
-    const betCoin = tx.splitCoins(tx.object(coinObjectId), [tx.pure.u64(amount)])
-    tx.moveCall({
-      target: `${PACKAGE_ID}::${MODULE_NAME}::criar_aposta`,
-      arguments: [betCoin, tx.pure.u64(amount)],
-    })
-
-    console.log("[v0] criarAposta: Transaction prepared, executing...")
-
-    // Execute the transaction using the modern dapp-kit pattern
-    const result = await new Promise((resolve, reject) => {
-      signAndExecuteTransaction(
-        {
-          transaction: tx,
-        },
-        {
-          onSuccess: (result: any) => {
-            console.log(`[v0] criarAposta transaction successful with digest: ${result.digest}`)
-            resolve(result)
-          },
-          onError: (error: any) => {
-            console.error(`[v0] criarAposta transaction failed:`, error)
-            reject(error)
-          },
-        }
-      )
-    })
-
-    console.log("[v0] criarAposta: Transaction result:", result)
-
-    // Get the created objects to find the Treasury object
-    const txDetails = await suiClient.getTransactionBlock({
-      digest: result.digest,
-      options: {
-        showEffects: true,
-        showObjectChanges: true,
-      },
-    })
-
-    // Find the shared Treasury object
-    let treasuryId = null
-    if (txDetails.objectChanges) {
-      for (const change of txDetails.objectChanges) {
-        if (change.type === 'created' && change.objectType?.includes('Treasury')) {
-          treasuryId = change.objectId
-          break
-        }
-      }
-    }
-
     return {
       success: true,
       digest: result.digest,
@@ -106,16 +403,6 @@ export async function criarAposta(
   }
 }
 
-/**
- * Joins a bet (entrar_aposta) by calling the SUI Move contract
- * @param senderAddress - Address of the player joining the bet
- * @param treasuryId - Object ID of the Treasury to join
- * @param coinObjectId - Object ID of the SUI coin to use for betting
- * @param amount - Amount to bet in MIST
- * @param signAndExecuteTransaction - Function from wallet to sign and execute
- * @param gasCoinId - Optional explicit gas coin object ID for gas payment
- * @returns Promise with transaction result
- */
 export async function entrarAposta(
   senderAddress: string,
   treasuryId: string,
@@ -125,61 +412,9 @@ export async function entrarAposta(
   gasCoinId?: string
 ) {
   try {
-    // Check if package ID is properly configured
-    if (PACKAGE_ID === "0x0") {
-      throw new Error("Package ID not configured. Please set NEXT_PUBLIC_PACKAGE_ID environment variable.")
-    }
-
-    console.log("[v0] entrarAposta: Joining bet with package:", PACKAGE_ID)
-    console.log("[v0] entrarAposta: Amount:", amount, "MIST")
-    console.log("[v0] entrarAposta: Treasury ID:", treasuryId)
-    console.log("[v0] entrarAposta: Coin object ID:", coinObjectId)
-    console.log("[v0] entrarAposta: Note: Passing original coin, Move function handles splitting")
-
-    const tx = new Transaction()
+    const betAmountSui = parseFloat(amount) / 1000000000 // Convert MIST to SUI
+    const result = await suiContract.joinBettingRoom(treasuryId, betAmountSui, signAndExecuteTransaction)
     
-    // Set the sender address for the transaction
-    tx.setSender(senderAddress)
-    console.log("[v0] entrarAposta: Transaction sender set to:", senderAddress)
-    
-    // Note: We let SUI SDK handle gas payment automatically from available coins
-    // The SDK will automatically select appropriate coins for gas payment
-    console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] entrarAposta: Separate gas coin available:", gasCoinId, "but letting SDK handle gas selection")
-    }
-    
-    // Call the entrar_aposta function - Move function expects (treasury: &mut Treasury, mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
-    // Split the coin to the exact bet amount and pass the split coin
-    const betCoin = tx.splitCoins(tx.object(coinObjectId), [tx.pure.u64(amount)])
-    tx.moveCall({
-      target: `${PACKAGE_ID}::${MODULE_NAME}::entrar_aposta`,
-      arguments: [tx.object(treasuryId), betCoin, tx.pure.u64(amount)],
-    })
-
-    console.log("[v0] entrarAposta: Transaction prepared, executing...")
-
-    // Execute the transaction using the modern dapp-kit pattern
-    const result = await new Promise((resolve, reject) => {
-      signAndExecuteTransaction(
-        {
-          transaction: tx,
-        },
-        {
-          onSuccess: (result: any) => {
-            console.log(`[v0] entrarAposta transaction successful with digest: ${result.digest}`)
-            resolve(result)
-          },
-          onError: (error: any) => {
-            console.error(`[v0] entrarAposta transaction failed:`, error)
-            reject(error)
-          },
-        }
-      )
-    })
-
-    console.log("[v0] entrarAposta: Transaction result:", result)
-
     return {
       success: true,
       digest: result.digest,
@@ -193,14 +428,6 @@ export async function entrarAposta(
   }
 }
 
-/**
- * Finishes the game (finish_game) by calling the SUI Move contract
- * @param senderAddress - Address of the player finishing the game
- * @param winnerAddress - Address of the winner
- * @param treasuryId - Object ID of the Treasury to distribute
- * @param signAndExecuteTransaction - Function from wallet to sign and execute
- * @returns Promise with transaction result
- */
 export async function finishGame(
   senderAddress: string,
   winnerAddress: string,
@@ -208,53 +435,8 @@ export async function finishGame(
   signAndExecuteTransaction: any
 ) {
   try {
-    // Check if package ID is properly configured
-    if (PACKAGE_ID === "0x0") {
-      throw new Error("Package ID not configured. Please set NEXT_PUBLIC_PACKAGE_ID environment variable.")
-    }
-
-    console.log("[v0] finishGame: Finishing game with package:", PACKAGE_ID)
-    console.log("[v0] finishGame: Sender address:", senderAddress)
-    console.log("[v0] finishGame: Winner address:", winnerAddress)
-    console.log("[v0] finishGame: Treasury ID:", treasuryId)
-
-    const tx = new Transaction()
+    const result = await suiContract.finishGame(treasuryId, winnerAddress, signAndExecuteTransaction)
     
-    // Set the sender address for the transaction
-    tx.setSender(senderAddress)
-    console.log("[v0] finishGame: Transaction sender set to:", senderAddress)
-    
-    console.log("[v0] finishGame: SUI SDK will handle gas payment automatically from available coins")
-    
-    // Call the finish_game function
-    tx.moveCall({
-      target: `${PACKAGE_ID}::${MODULE_NAME}::finish_game`,
-      arguments: [tx.pure.address(winnerAddress), tx.object(treasuryId)],
-    })
-
-    console.log("[v0] finishGame: Transaction prepared, executing...")
-
-    // Execute the transaction using the modern dapp-kit pattern
-    const result = await new Promise((resolve, reject) => {
-      signAndExecuteTransaction(
-        {
-          transaction: tx,
-        },
-        {
-          onSuccess: (result: any) => {
-            console.log(`[v0] finishGame transaction successful with digest: ${result.digest}`)
-            resolve(result)
-          },
-          onError: (error: any) => {
-            console.error(`[v0] finishGame transaction failed:`, error)
-            reject(error)
-          },
-        }
-      )
-    })
-
-    console.log("finish_game transaction result:", result)
-
     return {
       success: true,
       digest: result.digest,
@@ -268,18 +450,14 @@ export async function finishGame(
   }
 }
 
-/**
- * Gets user's SUI coins for betting with better validation
- * @param ownerAddress - Address of the coin owner
- * @returns Promise with available coins
- */
+// Keep the existing utility functions for backward compatibility
 export async function getUserCoins(ownerAddress: string) {
   try {
     console.log("[v0] getUserCoins: Fetching coins for address:", ownerAddress)
-    console.log("[v0] getUserCoins: Using network:", NETWORK)
-    console.log("[v0] getUserCoins: Using package ID:", PACKAGE_ID)
+    console.log("[v0] getUserCoins: Using network:", getCurrentNetwork())
+    console.log("[v0] getUserCoins: Using package ID:", CONTRACT_PACKAGE_ID)
     
-    const coins = await suiClient.getCoins({
+    const coins = await suiContract.client.getCoins({
       owner: ownerAddress,
       coinType: '0x2::sui::SUI',
     })
@@ -303,12 +481,6 @@ export async function getUserCoins(ownerAddress: string) {
   }
 }
 
-/**
- * Selects coins for betting with gas coin strategy - provides both betting coin and gas coin options
- * @param coins - Available coins
- * @param betAmountMist - Required bet amount in MIST
- * @returns Object with betting coin validation and gas strategy
- */
 export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist: string) {
   const betAmount = parseInt(betAmountMist)
   const gasReserveMist = 10_000_000 // 0.01 SUI
@@ -395,12 +567,6 @@ export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist
   }
 }
 
-/**
- * Selects a suitable coin for betting with proper gas fee reservation
- * @param coins - Available coins
- * @param betAmountMist - Required bet amount in MIST
- * @returns Object with betting coin validation
- */
 export function selectCoinsForBetting(coins: any[], betAmountMist: string) {
   const betAmount = parseInt(betAmountMist)
   
@@ -443,22 +609,12 @@ export function selectCoinsForBetting(coins: any[], betAmountMist: string) {
   }
 }
 
-/**
- * Converts SUI amount to MIST (1 SUI = 1,000,000,000 MIST)
- * @param suiAmount - Amount in SUI
- * @returns Amount in MIST as string
- */
 export function suiToMist(suiAmount: string): string {
   const sui = parseFloat(suiAmount)
   const mist = Math.floor(sui * 1_000_000_000)
   return mist.toString()
 }
 
-/**
- * Converts MIST amount to SUI
- * @param mistAmount - Amount in MIST
- * @returns Amount in SUI as string
- */
 export function mistToSui(mistAmount: string): string {
   const mist = parseInt(mistAmount)
   const sui = mist / 1_000_000_000
