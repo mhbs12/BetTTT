@@ -15,7 +15,7 @@ export async function criarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoin?: any  // Changed from gasCoinId string to full gas coin object
 ) {
   try {
     // Check if package ID is properly configured
@@ -34,10 +34,22 @@ export async function criarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] criarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    // Set explicit gas coin if provided - use complete coin object
+    if (gasCoin && gasCoin.coinObjectId !== coinObjectId) {
+      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoin.coinObjectId)
+      console.log("[v0] criarAposta: Gas coin metadata - version:", gasCoin.version, "digest:", gasCoin.digest)
+      
+      // Validate that we have the required metadata
+      if (gasCoin.version && gasCoin.digest) {
+        tx.setGasPayment([{
+          objectId: gasCoin.coinObjectId,
+          version: gasCoin.version,
+          digest: gasCoin.digest
+        }])
+        console.log("[v0] criarAposta: Set gas payment with complete object reference")
+      } else {
+        console.log("[v0] criarAposta: Gas coin missing version/digest, letting SDK handle gas payment")
+      }
     } else {
       console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
@@ -123,7 +135,7 @@ export async function entrarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoin?: any  // Changed from gasCoinId string to full gas coin object
 ) {
   try {
     // Check if package ID is properly configured
@@ -143,10 +155,22 @@ export async function entrarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] entrarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    // Set explicit gas coin if provided - use complete coin object
+    if (gasCoin && gasCoin.coinObjectId !== coinObjectId) {
+      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoin.coinObjectId)
+      console.log("[v0] entrarAposta: Gas coin metadata - version:", gasCoin.version, "digest:", gasCoin.digest)
+      
+      // Validate that we have the required metadata
+      if (gasCoin.version && gasCoin.digest) {
+        tx.setGasPayment([{
+          objectId: gasCoin.coinObjectId,
+          version: gasCoin.version,
+          digest: gasCoin.digest
+        }])
+        console.log("[v0] entrarAposta: Set gas payment with complete object reference")
+      } else {
+        console.log("[v0] entrarAposta: Gas coin missing version/digest, letting SDK handle gas payment")
+      }
     } else {
       console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
@@ -323,7 +347,8 @@ export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist
   const singleCoinSolution = coins.find(coin => parseInt(coin.balance) >= betAmount + gasReserveMist)
   
   if (singleCoinSolution) {
-    console.log("[v0] Strategy 1 - Single coin solution found:", singleCoinSolution.coinObjectId)
+    console.log("[v0] Strategy 1 - Single coin solution found:", singleCoinSolution.coinObjectId, "balance:", singleCoinSolution.balance, "MIST")
+    console.log("[v0] Single coin has version:", !!singleCoinSolution.version, "and digest:", !!singleCoinSolution.digest)
     return {
       strategy: "single_coin",
       bettingCoin: singleCoinSolution,
@@ -342,8 +367,9 @@ export function selectCoinsForBettingWithGasStrategy(coins: any[], betAmountMist
   
   if (bettingCoin && gasCoin) {
     console.log("[v0] Strategy 2 - Separate coins solution found")
-    console.log("[v0] Betting coin:", bettingCoin.coinObjectId)
-    console.log("[v0] Gas coin:", gasCoin.coinObjectId)
+    console.log("[v0] Betting coin:", bettingCoin.coinObjectId, "balance:", bettingCoin.balance, "MIST")
+    console.log("[v0] Gas coin:", gasCoin.coinObjectId, "balance:", gasCoin.balance, "MIST")
+    console.log("[v0] Gas coin has version:", !!gasCoin.version, "and digest:", !!gasCoin.digest)
     return {
       strategy: "separate_coins",
       bettingCoin,
