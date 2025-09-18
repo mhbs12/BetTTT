@@ -60,6 +60,32 @@ public entry fun finish_game(winner: address, treasury: Treasury, ctx: &mut TxCo
 }
 ```
 
+### Como Implementar as Chamadas de Função
+
+O projeto implementa corretamente as chamadas para o contrato SUI Move:
+
+```typescript
+// Função criar_aposta
+tx.moveCall({
+  target: `${PACKAGE_ID}::main::criar_aposta`,
+  arguments: [tx.object(coinObjectId), tx.pure.u64(amount)],
+})
+
+// Função entrar_aposta  
+tx.moveCall({
+  target: `${PACKAGE_ID}::main::entrar_aposta`,
+  arguments: [tx.object(treasuryId), tx.object(coinObjectId), tx.pure.u64(amount)],
+})
+
+// Função finish_game
+tx.moveCall({
+  target: `${PACKAGE_ID}::main::finish_game`,
+  arguments: [tx.pure.address(winnerAddress), tx.object(treasuryId)],
+})
+```
+
+**Importante**: As funções do contrato Move recebem `mut coin: Coin<SUI>` e fazem o split internamente. NÃO use `tx.splitCoins()` antes de chamar essas funções.
+
 ### Funcionalidades
 
 - **Criar Sala com Aposta**: Insira o valor da aposta em SUI ao criar uma sala
