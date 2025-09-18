@@ -88,26 +88,54 @@ export async function GET(req: NextRequest) {
         const winner = checkWinner(gameState.board)
         const isDraw = !winner && gameState.board.every((cell: any) => cell !== null)
 
-        if (winner || isDraw) {
+        if (winner) {
           gameState.gameStatus = "finished"
           gameState.winner = winner
-          gameState.isDraw = isDraw
+          gameState.isDraw = false
+          
+          // Broadcast game update
+          io?.to(roomId).emit("game-updated", gameState)
+          
+          // Broadcast winner
+          const winnerPlayer = room.players.find((p: any) => p.symbol === winner) || null
+          io?.to(roomId).emit("game-finished", {
+            winner: winnerPlayer,
+            isDraw: false,
+          })
+        } else if (isDraw) {
+          // For draw, briefly show the draw message then automatically restart
+          gameState.gameStatus = "finished"
+          gameState.winner = null
+          gameState.isDraw = true
+          
+          // Broadcast draw state briefly
+          io?.to(roomId).emit("game-updated", gameState)
+          io?.to(roomId).emit("game-finished", {
+            winner: null,
+            isDraw: true,
+          })
+          
+          // Automatically restart after 2 seconds
+          setTimeout(() => {
+            const currentRoom = gameRooms.get(roomId)
+            if (currentRoom && currentRoom.players.length === 2) {
+              gameStates.set(roomId, {
+                board: Array(9).fill(null),
+                currentPlayer: currentRoom.players[0]?.walletAddress,
+                winner: null,
+                isDraw: false,
+                gameStatus: "playing",
+              })
+              io?.to(roomId).emit("game-updated", gameStates.get(roomId))
+            }
+          }, 2000)
         } else {
           // Switch to next player
           const nextPlayer = room.players.find((p: any) => p.walletAddress !== playerAddress)
           gameState.currentPlayer = nextPlayer?.walletAddress
-        }
-
-        // Broadcast game update
-        io?.to(roomId).emit("game-updated", gameState)
-
-        // If game finished, broadcast winner
-        if (gameState.gameStatus === "finished") {
-          const winnerPlayer = winner ? room.players.find((p: any) => p.symbol === winner) : null
-          io?.to(roomId).emit("game-finished", {
-            winner: winnerPlayer,
-            isDraw,
-          })
+          
+          // Broadcast game update
+          io?.to(roomId).emit("game-updated", gameState)
         }
       })
 

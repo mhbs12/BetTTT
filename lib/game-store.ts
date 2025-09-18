@@ -129,7 +129,18 @@ class GameStore {
       room.winner = room.players.find((p) => p.symbol === winner)?.address || null
       room.status = "finished"
     } else if (room.board.every((cell) => cell !== null)) {
+      // It's a draw - briefly show finished state, then automatically restart after a delay
       room.status = "finished"
+      room.winner = null
+      
+      // Automatically restart after 2 seconds
+      setTimeout(() => {
+        if (room.status === "finished" && !room.winner) {
+          room.board = Array(9).fill(null)
+          room.currentPlayer = "X" // Reset to X for the new game
+          room.status = "playing"
+        }
+      }, 2000)
     } else {
       room.currentPlayer = room.currentPlayer === "X" ? "O" : "X"
     }
