@@ -15,7 +15,7 @@ export async function criarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoin?: any  // Changed from gasCoinId string to full gas coin object
 ) {
   try {
     // Check if package ID is properly configured
@@ -34,10 +34,15 @@ export async function criarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] criarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    // Set explicit gas coin if provided - use complete coin object
+    if (gasCoin && gasCoin.coinObjectId !== coinObjectId) {
+      console.log("[v0] criarAposta: Using explicit gas coin:", gasCoin.coinObjectId)
+      tx.setGasPayment([{
+        objectId: gasCoin.coinObjectId,
+        version: gasCoin.version,
+        digest: gasCoin.digest
+      }])
+      console.log("[v0] criarAposta: Set gas payment with complete object reference")
     } else {
       console.log("[v0] criarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
@@ -123,7 +128,7 @@ export async function entrarAposta(
   coinObjectId: string,
   amount: string,
   signAndExecuteTransaction: any,
-  gasCoinId?: string
+  gasCoin?: any  // Changed from gasCoinId string to full gas coin object
 ) {
   try {
     // Check if package ID is properly configured
@@ -143,10 +148,15 @@ export async function entrarAposta(
     tx.setSender(senderAddress)
     console.log("[v0] entrarAposta: Transaction sender set to:", senderAddress)
     
-    // Set explicit gas coin if provided
-    if (gasCoinId && gasCoinId !== coinObjectId) {
-      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoinId)
-      tx.setGasPayment([{ objectId: gasCoinId, version: null, digest: null }])
+    // Set explicit gas coin if provided - use complete coin object
+    if (gasCoin && gasCoin.coinObjectId !== coinObjectId) {
+      console.log("[v0] entrarAposta: Using explicit gas coin:", gasCoin.coinObjectId)
+      tx.setGasPayment([{
+        objectId: gasCoin.coinObjectId,
+        version: gasCoin.version,
+        digest: gasCoin.digest
+      }])
+      console.log("[v0] entrarAposta: Set gas payment with complete object reference")
     } else {
       console.log("[v0] entrarAposta: SUI SDK will handle gas payment automatically from available coins")
     }
