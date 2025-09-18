@@ -5,6 +5,7 @@ import type { GameState, Room } from "@/types/game"
 export class GameEngine {
   private gameStates: Map<string, GameState> = new Map()
   private listeners: Map<string, Set<(gameState: GameState) => void>> = new Map()
+  private initialPlayers: Map<string, string> = new Map() // Store initial starting player for each room
 
   initializeGame(roomId: string, room: Room): GameState {
     const gameState: GameState = {
@@ -14,6 +15,9 @@ export class GameEngine {
       isDraw: false,
       gameStatus: room.players.length === 2 ? "playing" : "waiting",
     }
+
+    // Store the initial starting player for restarts
+    this.initialPlayers.set(roomId, gameState.currentPlayer)
 
     this.gameStates.set(roomId, gameState)
     this.notifyListeners(roomId, gameState)
@@ -57,6 +61,27 @@ export class GameEngine {
 
     this.gameStates.set(roomId, newGameState)
     this.notifyListeners(roomId, newGameState)
+
+    // Automatically restart after 2 seconds if it's a draw
+    if (isDraw) {
+      setTimeout(() => {
+        const currentGameState = this.gameStates.get(roomId)
+        if (currentGameState && currentGameState.gameStatus === "finished" && currentGameState.isDraw) {
+          // Restart with the original starting player
+          const initialPlayer = this.initialPlayers.get(roomId) || currentGameState.currentPlayer
+          const restartedGameState: GameState = {
+            board: Array(9).fill(null),
+            currentPlayer: initialPlayer,
+            winner: null,
+            isDraw: false,
+            gameStatus: "playing",
+          }
+          this.gameStates.set(roomId, restartedGameState)
+          this.notifyListeners(roomId, restartedGameState)
+        }
+      }, 2000)
+    }
+
     return newGameState
   }
 
@@ -129,6 +154,7 @@ export class GameEngine {
   cleanupRoom(roomId: string): void {
     this.gameStates.delete(roomId)
     this.listeners.delete(roomId)
+    this.initialPlayers.delete(roomId)
   }
 }
 
