@@ -3,9 +3,10 @@
 import { useWallet } from "@suiet/wallet-kit"
 import { Button } from "@/components/ui/button"
 import { LogOut, Gamepad2, Sparkles, Gem } from "lucide-react" // Added Gem icon for NFT button
+import { mintOGNFT } from "@/lib/sui-contract"
 
 export function GlobalHeader() {
-  const { connected, account, disconnect } = useWallet()
+  const { connected, account, disconnect, signAndExecuteTransaction } = useWallet()
 
   if (!connected || !account) {
     return null
@@ -21,9 +22,22 @@ export function GlobalHeader() {
 
   const handleMintNFT = async () => {
     try {
-      // TODO: Implement NFT minting logic
       console.log("Minting OG NFT for:", account.address)
-      // This would integrate with SUI blockchain to mint an NFT
+      
+      if (!signAndExecuteTransaction) {
+        console.error("Wallet signing function not available")
+        return
+      }
+
+      const result = await mintOGNFT(account.address, signAndExecuteTransaction)
+      
+      if (result.success) {
+        console.log("OG NFT minted successfully! Transaction digest:", result.digest)
+        // You could add a toast notification here for user feedback
+      } else {
+        console.error("Failed to mint OG NFT:", result.error)
+        // You could add a toast error notification here
+      }
     } catch (error) {
       console.error("Failed to mint NFT:", error)
     }
