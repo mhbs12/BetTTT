@@ -97,6 +97,9 @@ export async function getRoomState(roomId: string) {
       return { success: false, error: "Room ID is required" }
     }
 
+    // Trigger cleanup of expired disconnections before getting room state
+    gameStore.forceCleanupExpiredDisconnections()
+
     const room = gameStore.getRoom(roomId.trim())
 
     if (!room) {
@@ -108,6 +111,7 @@ export async function getRoomState(roomId: string) {
       roomId,
       status: room.status,
       players: room.players.length,
+      disconnectedPlayers: room.disconnectedPlayers?.length || 0,
     })
 
     return { success: true, room }
