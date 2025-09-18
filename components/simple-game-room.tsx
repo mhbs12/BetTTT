@@ -129,9 +129,9 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
   // Handle contract finish when game ends with a winner
   useEffect(() => {
     const handleContractFinish = async () => {
-      // Only call if game is finished, has a winner, has treasury ID, and hasn't been called yet
-      if (room.status === "finished" && room.winner && room.treasuryId && !contractFinished && signAndExecuteTransaction) {
-        console.log("[v0] Game finished with winner, calling finish_game contract")
+      // Only call if game is finished, has a winner, has treasury ID, hasn't been called yet, AND current user is the winner
+      if (room.status === "finished" && room.winner && room.treasuryId && !contractFinished && signAndExecuteTransaction && account.address === room.winner) {
+        console.log("[v0] Game finished with winner, calling finish_game contract for winner:", room.winner)
         setContractFinished(true)
         
         try {
@@ -145,11 +145,13 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
         } catch (error) {
           console.error("[v0] Error calling finish_game contract:", error)
         }
+      } else if (room.status === "finished" && room.winner && account.address !== room.winner) {
+        console.log("[v0] Game finished, but current user is not the winner. No contract call for loser:", account.address)
       }
     }
 
     handleContractFinish()
-  }, [room.status, room.winner, room.treasuryId, contractFinished, signAndExecuteTransaction])
+  }, [room.status, room.winner, room.treasuryId, contractFinished, signAndExecuteTransaction, account.address])
 
   const handleMove = async (position: number) => {
     if (!account?.address || loading) return
