@@ -17,11 +17,12 @@ export function createBetTransaction(coinObjectId: string, amount: string): Tran
   const tx = new Transaction()
 
   // The Move function expects (mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
-  // Pass the original coin object - the Move function will handle splitting internally
+  // Split the coin to the exact bet amount and pass the split coin
+  const betCoin = tx.splitCoins(tx.object(coinObjectId), [tx.pure.u64(amount)])
   tx.moveCall({
     target: `${PACKAGE_ID}::main::criar_aposta`,
     arguments: [
-      tx.object(coinObjectId),
+      betCoin,
       tx.pure.u64(amount),
     ],
   })
@@ -39,12 +40,13 @@ export function joinBetTransaction(treasuryId: string, coinObjectId: string, amo
   const tx = new Transaction()
 
   // The Move function expects (treasury: &mut Treasury, mut coin: Coin<SUI>, amount: u64, ctx: &mut TxContext)
-  // Pass the original coin object - the Move function will handle splitting internally
+  // Split the coin to the exact bet amount and pass the split coin
+  const betCoin = tx.splitCoins(tx.object(coinObjectId), [tx.pure.u64(amount)])
   tx.moveCall({
     target: `${PACKAGE_ID}::main::entrar_aposta`,
     arguments: [
       tx.object(treasuryId),
-      tx.object(coinObjectId),
+      betCoin,
       tx.pure.u64(amount),
     ],
   })
