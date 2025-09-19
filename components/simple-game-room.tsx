@@ -27,23 +27,37 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
   const maxRetries = 5
 
   useEffect(() => {
-    // Don't poll if game is finished
+    // Don't poll if game is finished, unless it's a draw that might restart
     if (room.status === "finished") {
-      console.log("[v0] Game finished, stopping polling")
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-
-      const checkForfeit = async () => {
-        const result = await checkGameForfeit(room.id)
-        if (result.success) {
-          setIsForfeit(result.isForfeit)
+      // For draws (no winner), continue polling briefly to catch auto-restart
+      if (!room.winner) {
+        console.log("[v0] Draw detected, continuing polling to catch restart")
+        // Let polling continue for draws, but stop after a timeout if no restart happens
+        setTimeout(() => {
+          if (intervalRef.current && room.status === "finished" && !room.winner) {
+            console.log("[v0] Draw timeout reached, stopping polling")
+            clearInterval(intervalRef.current)
+            intervalRef.current = null
+          }
+        }, 5000) // Give 5 seconds for the restart to happen
+      } else {
+        // For wins, stop polling immediately
+        console.log("[v0] Game finished with winner, stopping polling")
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
         }
-      }
-      checkForfeit()
 
-      return
+        const checkForfeit = async () => {
+          const result = await checkGameForfeit(room.id)
+          if (result.success) {
+            setIsForfeit(result.isForfeit)
+          }
+        }
+        checkForfeit()
+
+        return
+      }
     }
 
     const fetchRoomState = async () => {
@@ -57,15 +71,20 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
           console.log("[v0] Room state updated successfully")
 
           if (result.room.status === "finished") {
-            console.log("[v0] Game just finished, stopping polling")
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current)
-              intervalRef.current = null
-            }
+            // Only stop polling immediately for wins, not draws
+            if (result.room.winner) {
+              console.log("[v0] Game just finished with winner, stopping polling")
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current)
+                intervalRef.current = null
+              }
 
-            const forfeitResult = await checkGameForfeit(room.id)
-            if (forfeitResult.success) {
-              setIsForfeit(forfeitResult.isForfeit)
+              const forfeitResult = await checkGameForfeit(room.id)
+              if (forfeitResult.success) {
+                setIsForfeit(forfeitResult.isForfeit)
+              }
+            } else {
+              console.log("[v0] Game finished with draw, continuing polling to catch restart")
             }
           }
         } else {
@@ -115,7 +134,8 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
     }
 
     fetchRoomState()
-    if (room.status !== "finished") {
+    // Set up polling interval, but skip for wins (not for draws)
+    if (room.status !== "finished" || (room.status === "finished" && !room.winner)) {
       intervalRef.current = setInterval(fetchRoomState, 2000)
     }
 
