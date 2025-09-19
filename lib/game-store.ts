@@ -129,20 +129,16 @@ class GameStore {
       room.winner = room.players.find((p) => p.symbol === winner)?.address || null
       room.status = "finished"
     } else if (room.board.every((cell) => cell !== null)) {
-      // It's a draw - briefly show finished state, then automatically restart after a delay
-      room.status = "finished"
+      // It's a draw - immediately restart the game for better synchronization
+      room.board = Array(9).fill(null)
+      room.currentPlayer = "X" // Reset to X for the new game  
+      room.status = "playing"
       room.winner = null
-      
-      // Automatically restart after 2 seconds
-      setTimeout(() => {
-        if (room.status === "finished" && !room.winner) {
-          room.board = Array(9).fill(null)
-          room.currentPlayer = "X" // Reset to X for the new game
-          room.status = "playing"
-        }
-      }, 2000)
+      console.log("[v0] Game immediately restarted after draw")
     } else {
+      const previousPlayer = room.currentPlayer
       room.currentPlayer = room.currentPlayer === "X" ? "O" : "X"
+      console.log(`[v0] Player turn switched from ${previousPlayer} to ${room.currentPlayer}`)
     }
 
     return room
