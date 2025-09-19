@@ -134,7 +134,8 @@ export function SimpleGameRoom({ initialRoom, onLeaveRoom }: SimpleGameRoomProps
     }
 
     fetchRoomState()
-    if (room.status !== "finished") {
+    // Set up polling interval, but skip for wins (not for draws)
+    if (room.status !== "finished" || (room.status === "finished" && !room.winner)) {
       intervalRef.current = setInterval(fetchRoomState, 2000)
     }
 
